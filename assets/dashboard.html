@@ -126,6 +126,7 @@ main {
   grid-template-areas:
     "form    stages"
     "form    metrics"
+    "term    dep-graph"
     "term    bottlenecks"
     "term    pr";
   gap: 20px;
@@ -134,7 +135,7 @@ main {
 @media (max-width: 960px) {
   main {
     grid-template-columns: 1fr;
-    grid-template-areas: "form" "stages" "metrics" "bottlenecks" "pr" "term";
+    grid-template-areas: "form" "stages" "metrics" "dep-graph" "bottlenecks" "pr" "term";
   }
 }
 
@@ -742,6 +743,123 @@ pre.diff-code {
 
 /* ── HIDDEN ── */
 .hidden { display: none !important; }
+
+/* ── PR SECTIONS ── */
+.pr-section { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.pr-section:last-child { border-bottom: none; }
+.pr-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+}
+
+/* ── CHANGES DIFF ── */
+.change-file {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; margin-bottom: 10px;
+}
+.change-file-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: #1c2128;
+  border-bottom: 1px solid var(--border);
+}
+.change-path {
+  font-family: var(--mono); font-size: 11px; color: var(--text);
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.change-add { font-family: var(--mono); font-size: 11px; color: var(--green); }
+.change-del { font-family: var(--mono); font-size: 11px; color: var(--red); }
+.change-diff {
+  margin: 0; padding: 8px 10px; font-family: var(--mono);
+  font-size: 11px; line-height: 1.85; overflow-x: auto; background: transparent;
+}
+.gdiff-add { display: block; color: #3fb950; background: rgba(63,185,80,.08);
+             padding: 0 4px; border-left: 2px solid #3fb950; }
+.gdiff-del { display: block; color: #f85149; background: rgba(248,81,73,.08);
+             padding: 0 4px; border-left: 2px solid #f85149; }
+.gdiff-ctx { display: block; color: var(--muted); padding: 0 4px; }
+
+/* ── VALIDATION ── */
+.val-btn {
+  background: var(--blue); color: #fff; border: none; border-radius: 6px;
+  padding: 8px 18px; font-family: var(--mono); font-size: 12px;
+  font-weight: 600; cursor: pointer; transition: opacity .2s;
+}
+.val-btn:hover:not(:disabled) { opacity: .85; }
+.val-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.val-gate {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; margin-bottom: 12px;
+  background: rgba(210,153,34,.07); border: 1px solid rgba(210,153,34,.2);
+  border-radius: 6px; font-family: var(--mono); font-size: 11px; color: var(--yellow);
+}
+.skip-link { cursor: pointer; text-decoration: underline; color: var(--muted); }
+.skip-link:hover { color: var(--text); }
+
+.val-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  padding: 5px 14px; border-radius: 20px; margin-bottom: 12px;
+}
+.val-badge.pass { background: rgba(63,185,80,.1);  color: var(--green); border: 1px solid rgba(63,185,80,.2); }
+.val-badge.fail { background: rgba(248,81,73,.1);  color: var(--red);   border: 1px solid rgba(248,81,73,.2); }
+
+.val-results-grid { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.val-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; border-radius: 5px; font-family: var(--mono); font-size: 11px;
+}
+.val-row.ok   { background: rgba(63,185,80,.07); }
+.val-row.fail { background: rgba(248,81,73,.07); }
+.val-row span:first-child { color: var(--muted); }
+.val-row.ok   span:last-child { color: var(--green); }
+.val-row.fail span:last-child { color: var(--red); }
+
+.val-perf {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; background: var(--bg3); border-radius: 8px;
+  font-family: var(--mono); font-size: 12px; margin-top: 10px;
+}
+.val-perf-before { color: var(--muted); }
+.val-perf-after  { color: var(--green); font-weight: 700; }
+.val-perf-delta  {
+  margin-left: auto; padding: 3px 10px;
+  background: rgba(63,185,80,.1); color: var(--green);
+  border-radius: 12px; font-weight: 700;
+}
+
+/* ── CREATE PR BUTTON ── */
+.create-pr-btn {
+  background: var(--green); color: #fff; border: none; border-radius: 6px;
+  padding: 9px 20px; font-family: var(--sans); font-size: 13px;
+  font-weight: 700; cursor: pointer; letter-spacing: .02em;
+  transition: opacity .2s, transform .15s;
+}
+.create-pr-btn:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+.create-pr-btn:disabled { background: var(--muted); cursor: not-allowed; transform: none; }
+
+/* ── DEPENDENCY GRAPH ── */
+#dep-card { grid-area: dep-graph; }
+
+@keyframes depNode {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes depEdge {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dep-wfall-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 92px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  opacity: 0;
+  animation: depNode 0.4s ease forwards;
+}
 </style>
 </head>
 <body>
@@ -894,6 +1012,20 @@ pre.diff-code {
     </div>
   </div>
 
+  <!-- ── DEPENDENCY GRAPH ── -->
+  <div class="card" id="dep-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">🔗</span>API Dependency Graph</span>
+      <span id="dep-total-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="dep-graph-container" style="padding:20px">
+      <div class="empty-state">
+        <div class="empty-icon">🔗</div>
+        <div class="empty-text">Run the pipeline to see the dependency graph</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── BOTTLENECKS ── -->
   <div class="card" id="bottleneck-card">
     <div class="card-header">
@@ -911,7 +1043,8 @@ pre.diff-code {
   <!-- ── PR ── -->
   <div class="card" id="pr-card">
     <div class="card-header">
-      <span><span class="card-header-icon">🔀</span>Generated PR</span>
+      <span><span class="card-header-icon">🔀</span>Apply + Verify + PR</span>
+      <span id="pr-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
     </div>
     <div id="pr-content">
       <div class="empty-state">
@@ -1105,6 +1238,14 @@ function animateCounter(el, from, to, dur = 600) {
 // ─────────────────────────────────────────────
 const SCENARIOS = {
   products: {
+    endpoint: 'http://localhost/api/products',
+    dependencies: [
+      { type:'database', name:'MySQL',     details:'N+1 queries ×12',   ms:280, status:'bottleneck', hits:12 },
+      { type:'app',      name:'App Logic', details:'serialize + encode', ms:88,  status:'ok',         hits:0  },
+      { type:'storage',  name:'Config FS', details:'config file reads',  ms:10,  status:'ok',         hits:4  },
+      { type:'cache',    name:'Redis',     details:'cache miss check',   ms:8,   status:'ok',         hits:1  },
+      { type:'http',     name:'Image CDN', details:'media URL resolve',  ms:6,   status:'ok',         hits:3  },
+    ],
     runs: [285,312,267,298,340,271,456,283,276,301,295,388,269,274,310,558,288,265,292,392],
     bodyBytes: '34,161', firstMs: 558,
     p50: 267.0, p75: 310.5, p95: 392.1, p99: 558.0, app: 295.5,
@@ -1123,10 +1264,24 @@ const SCENARIOS = {
     patches: [
       { n: 1, label: 'n plus one query', via: 'exact', skip: false },
     ],
-    s3Done: '1/1 fixes · branch ready',
+    s3Done: '1/1 fixes · validate + create PR',
     s1Summary: 'p50=267ms · p95=392ms · app=295.5ms',
     s2Summary2: '1 bottleneck · estimated −150ms (−51%)',
     s3Summary: '1/1 fixes applied · branch: api-optimizer/php-20260515-1855',
+    changes: [
+      {
+        file: 'packages/Webkul/Shop/src/Http/Controllers/API/ProductController.php',
+        shortFile: 'ProductController.php',
+        added: 4, removed: 2,
+        diff: `-$products = $this->productRepository\n-    ->setSearchEngine($searchEngine)\n-    ->getAll(array_merge(request()->query(), [...]));\n+// Eager load to eliminate N+1 queries\n+$products = $this->productRepository\n+    ->setSearchEngine($searchEngine)\n+    ->getAll(array_merge(request()->query(), [\n+        'with' => ['images', 'categories', 'prices', 'attributes'],\n+    ]));`,
+      }
+    ],
+    validation: {
+      status_before: 200, status_after: 200,
+      schema_match: true, records_before: 31, records_after: 31,
+      payload_before: 34161, payload_after: 34161,
+      p95_before: 392, p95_after: 192, improvement_pct: 51,
+    },
     bottlenecks: [
       {
         id: 'bn-1', rank: '#1', severity: 'critical', sevLabel: 'Critical',
@@ -1142,6 +1297,12 @@ const SCENARIOS = {
   },
 
   categories: {
+    endpoint: 'http://localhost/api/categories',
+    dependencies: [
+      { type:'database', name:'MySQL',     details:'Category tree load',   ms:42, status:'ok',   hits:5 },
+      { type:'app',      name:'App Logic', details:'tree structure build', ms:27, status:'warn',  hits:0 },
+      { type:'cache',    name:'Redis',     details:'cache lookup',         ms:4,  status:'ok',   hits:1 },
+    ],
     runs: [68,71,65,73,69,64,88,66,62,70,67,91,63,68,72,93,65,64,69,73],
     bodyBytes: '6,916', firstMs: 102,
     p50: 64.9, p75: 67.2, p95: 73.3, p99: 73.3, app: 64.9,
@@ -1168,10 +1329,30 @@ const SCENARIOS = {
       { n: 2, label: 'redundant computation', via: 'fuzzy', skip: false },
       { n: 3, label: 'missing index', via: 'fuzzy', skip: false },
     ],
-    s3Done: '2/3 fixes · branch ready',
+    s3Done: '2/3 fixes · validate + create PR',
     s1Summary: 'p50=64.9ms · p95=73.3ms · app=64.9ms',
     s2Summary2: '3 bottlenecks · estimated −73ms (−112%)',
     s3Summary: '2/3 fixes applied · branch: api-optimizer/php-20260516-0834',
+    changes: [
+      {
+        file: 'packages/Webkul/Shop/src/Http/Controllers/API/ProductController.php',
+        shortFile: 'ProductController.php',
+        added: 5, removed: 3,
+        diff: `-$searchEngine = 'database';\n-if (core()->getConfigData('catalog.products.search.engine') == 'elastic') {\n-    $searchEngine = core()->getConfigData('catalog.products.search.storefront_mode');\n-}\n+$searchEngine = cache()->remember('search_engine_config', 3600, function() {\n+    return core()->getConfigData('catalog.products.search.engine') == 'elastic'\n+        ? core()->getConfigData('catalog.products.search.storefront_mode')\n+        : 'database';\n+});`,
+      },
+      {
+        file: 'packages/Webkul/Shop/src/Http/Controllers/API/ReviewController.php',
+        shortFile: 'ReviewController.php',
+        added: 2, removed: 1,
+        diff: `-// No composite index on reviews table\n+// Add migration: $table->index(['product_id', 'status', 'created_at']);\n $product->reviews()\n     ->where('status', self::STATUS_APPROVED)\n     ->paginate(8);`,
+      }
+    ],
+    validation: {
+      status_before: 200, status_after: 200,
+      schema_match: true, records_before: 26, records_after: 26,
+      payload_before: 6916, payload_after: 6916,
+      p95_before: 73, p95_after: 42, improvement_pct: 42,
+    },
     bottlenecks: [
       {
         id: 'bn-1', rank: '#1', severity: 'high', sevLabel: 'High',
@@ -1237,6 +1418,8 @@ async function runPipeline() {
   term.innerHTML = '';
   Object.assign(chartData, { p50: [], p75: [], p95: [], p99: [] });
   drawChart();
+  document.getElementById('dep-graph-container').innerHTML = `<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-text">Scanning dependencies…</div></div>`;
+  document.getElementById('dep-total-badge').textContent = '';
   document.getElementById('bottleneck-list').innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Analyzing…</div></div>`;
   document.getElementById('pr-content').innerHTML = `<div class="empty-state"><div class="empty-icon">🔀</div><div class="empty-text">Waiting for Stage 3…</div></div>`;
   document.getElementById('bneck-count').textContent = '';
@@ -1333,6 +1516,31 @@ async function runPipeline() {
   tlog('');
 
   stageDone(1, sc.s1Done, '✓');
+  await sleep(400);
+
+  // ── DEPENDENCY SCAN ──
+  tlogHtml(`<span class="t-blue t-bold">  ──────── DEPENDENCY SCAN ────────</span>`);
+  await sleep(300);
+  tlogHtml(`<span class="t-green">  ✓  Scanned 40 source files (PHP)</span>`);
+  await sleep(350);
+  tlogHtml(`<span class="t-green">  ✓  Detected ${sc.dependencies.length} service dependencies</span>`);
+  await sleep(250);
+  for (const dep of sc.dependencies) {
+    const pct = (dep.ms / sc.p95 * 100).toFixed(0);
+    const flag = dep.status === 'bottleneck'
+      ? `<span class="t-red">⚠ bottleneck</span>`
+      : dep.status === 'warn'
+      ? `<span class="t-yellow">⚠ high</span>`
+      : `<span class="t-green">ok</span>`;
+    tlogHtml(`<span class="t-white">     ${dep.name.padEnd(12)}  ${String(dep.ms+'ms').padEnd(6)}  ${String(pct+'%').padStart(4)}  ${dep.hits > 0 ? dep.hits + ' hits' : '—'}  [${flag}<span class="t-white">]</span></span>`);
+    await sleep(180);
+  }
+  if (sc.dependencies.reduce((a,d) => a+d.ms, 0) < sc.p95) {
+    const residual = sc.p95 - sc.dependencies.reduce((a,d) => a+d.ms, 0);
+    tlogHtml(`<span class="t-gray">     App Logic    ${residual.toFixed(0)}ms   computed residual</span>`);
+  }
+  tlog('');
+  renderDependencyGraph(sc);
 
   if (profOnly) {
     tlogHtml(`<span class="t-gray">  STAGE 2 SKIPPED  —  --profile-only flag set</span>`);
@@ -1405,11 +1613,186 @@ async function runPipeline() {
     }
   }
 
+  tlogHtml(`<span class="t-green">  ✓  Changes committed → ${sc.branch}</span>`);
   tlogHtml(`<span class="t-green">  ✓  PR description generated</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-yellow">  ──────── NEXT STEP ────────</span>`);
+  tlogHtml(`<span class="t-white">  Validate API response unchanged, then create PR.</span>`);
+  tlogHtml(`<span class="t-gray">  Click "Run Validation" in the panel →</span>`);
   stageDone(3, sc.s3Done, '✓');
   showPR(sc);
   await sleep(300);
   finishPipeline(sc);
+}
+
+// ─────────────────────────────────────────────
+// DEPENDENCY GRAPH
+// ─────────────────────────────────────────────
+const DEP_TYPE_CONFIG = {
+  database: { color: '#f0883e', short: 'DB',    label: 'Database'  },
+  cache:    { color: '#79c0ff', short: 'CACHE', label: 'Cache'     },
+  http:     { color: '#bc8cff', short: 'HTTP',  label: 'HTTP'      },
+  queue:    { color: '#3fb950', short: 'QUEUE', label: 'Queue'     },
+  app:      { color: '#8b949e', short: 'APP',   label: 'App Logic' },
+  storage:  { color: '#d29922', short: 'FS',    label: 'Storage'   },
+  grpc:     { color: '#e3b341', short: 'gRPC',  label: 'gRPC'      },
+  event:    { color: '#56d4dd', short: 'EVNT',  label: 'Events'    },
+  mail:     { color: '#f85149', short: 'MAIL',  label: 'Mail'      },
+};
+
+function renderDependencyGraph(sc) {
+  const container = document.getElementById('dep-graph-container');
+  if (!container || !sc.dependencies || !sc.dependencies.length) return;
+
+  const deps     = sc.dependencies;
+  const totalMs  = sc.p95;
+  const epPath   = (sc.endpoint || '').replace('http://localhost', '');
+
+  const W = 800, H = 248;
+  const rootW = 272, rootH = 54;
+  const rootX = W / 2, rootY = 50;
+
+  const childW = 136, childH = 64, spacing = 14;
+  const childY = 186;
+  const totalCW = deps.length * childW + (deps.length - 1) * spacing;
+  const cStart  = (W - totalCW) / 2 + childW / 2;
+
+  const children = deps.map((dep, i) => ({
+    ...dep,
+    cx:    cStart + i * (childW + spacing),
+    cy:    childY,
+    cfg:   DEP_TYPE_CONFIG[dep.type] || DEP_TYPE_CONFIG.app,
+    delay: (i * 0.11 + 0.15).toFixed(2),
+  }));
+
+  // ── SVG ──
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible;display:block">`;
+
+  // Edges
+  children.forEach((ch, i) => {
+    const pct = ch.ms / totalMs;
+    const sw  = (Math.max(1.5, Math.min(5, pct * 15))).toFixed(1);
+    const op  = (0.22 + pct * 0.58).toFixed(2);
+    const x1 = rootX, y1 = rootY + rootH / 2 + 2;
+    const x2 = ch.cx, y2 = ch.cy - childH / 2 - 2;
+    const mY  = ((y1 + y2) / 2).toFixed(0);
+    svg += `<path class="dep-edge" style="animation-delay:${ch.delay}s"
+      d="M${x1.toFixed(0)},${y1.toFixed(0)} C${x1.toFixed(0)},${mY} ${x2.toFixed(0)},${mY} ${x2.toFixed(0)},${y2.toFixed(0)}"
+      fill="none" stroke="${ch.cfg.color}" stroke-width="${sw}" opacity="${op}"/>`;
+  });
+
+  // Root node
+  svg += `
+<g class="dep-node" style="animation-delay:0s">
+  <rect x="${rootX - rootW/2}" y="${rootY - rootH/2}" width="${rootW}" height="${rootH}" rx="8"
+        fill="#1c2128" stroke="#58a6ff" stroke-width="2"/>
+  <text x="${rootX}" y="${rootY - 9}" text-anchor="middle"
+        fill="#7d8590" font-family="JetBrains Mono,monospace" font-size="10">GET ${epPath}</text>
+  <text x="${rootX}" y="${rootY + 14}" text-anchor="middle"
+        fill="#58a6ff" font-family="JetBrains Mono,monospace" font-size="22" font-weight="700">
+    ${totalMs.toFixed(0)} ms
+  </text>
+</g>`;
+
+  // Child nodes
+  children.forEach(ch => {
+    const isBottleneck = ch.status === 'bottleneck';
+    const isWarn       = ch.status === 'warn';
+    const border  = isBottleneck ? '#f85149' : isWarn ? '#d29922' : ch.cfg.color;
+    const borderW = (isBottleneck || isWarn) ? 2 : 1.5;
+    const pct     = ((ch.ms / totalMs) * 100).toFixed(0);
+
+    svg += `
+<g class="dep-node" style="animation-delay:${ch.delay}s">
+  <rect x="${ch.cx - childW/2}" y="${ch.cy - childH/2}" width="${childW}" height="${childH}" rx="6"
+        fill="#1c2128" stroke="${border}" stroke-width="${borderW}"/>
+  <text x="${ch.cx}" y="${ch.cy - 19}" text-anchor="middle"
+        fill="${ch.cfg.color}" font-family="JetBrains Mono,monospace" font-size="9" font-weight="600" letter-spacing="0.8">
+    ${ch.cfg.short}
+  </text>
+  <text x="${ch.cx}" y="${ch.cy + 3}" text-anchor="middle"
+        fill="#e6edf3" font-family="JetBrains Mono,monospace" font-size="18" font-weight="700">
+    ${ch.ms}ms
+  </text>
+  <text x="${ch.cx}" y="${ch.cy + 20}" text-anchor="middle"
+        fill="#7d8590" font-family="JetBrains Mono,monospace" font-size="9">
+    ${pct}% · ${ch.details}
+  </text>`;
+
+    if (isBottleneck) {
+      svg += `
+  <circle cx="${ch.cx + childW/2 - 10}" cy="${ch.cy - childH/2 + 10}" r="9" fill="#f85149" opacity="0.9"/>
+  <text x="${ch.cx + childW/2 - 10}" y="${ch.cy - childH/2 + 14}" text-anchor="middle"
+        fill="white" font-family="system-ui" font-size="10" font-weight="800">!</text>`;
+    }
+    svg += `</g>`;
+  });
+
+  svg += `</svg>`;
+
+  // ── Waterfall breakdown ──
+  const sorted = [...deps].sort((a, b) => b.ms - a.ms);
+  const maxMs  = sorted[0].ms;
+
+  let wfall = `<div style="margin-top:22px">
+<div style="font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:1.5px;
+            color:var(--muted);text-transform:uppercase;margin-bottom:12px">
+  Latency Breakdown
+</div>`;
+
+  sorted.forEach((dep, i) => {
+    const cfg       = DEP_TYPE_CONFIG[dep.type] || DEP_TYPE_CONFIG.app;
+    const barW      = (dep.ms / maxMs * 100).toFixed(1);
+    const pctTotal  = (dep.ms / totalMs * 100).toFixed(1);
+    const isB       = dep.status === 'bottleneck';
+
+    wfall += `<div class="dep-wfall-row" style="animation-delay:${(0.3 + i*0.1).toFixed(1)}s">
+  <div style="font-family:var(--mono);font-size:11px;color:${cfg.color};text-align:right;font-weight:${isB?'700':'400'}">
+    ${dep.name}${isB ? ' ⚠' : ''}
+  </div>
+  <div style="background:#0d1117;border-radius:3px;height:18px;overflow:hidden">
+    <div style="width:0%;height:100%;background:${cfg.color};opacity:${isB?'0.75':'0.45'};
+                border-radius:3px;transition:width 0.9s ease" data-w="${barW}"></div>
+  </div>
+  <div style="font-family:var(--mono);font-size:11px;color:#c9d1d9">
+    ${dep.ms}ms<span style="color:var(--muted)"> (${pctTotal}%)</span>
+  </div>
+</div>`;
+  });
+
+  // Stacked colour bar
+  wfall += `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+<div style="height:6px;display:flex;gap:1px;border-radius:3px;overflow:hidden">`;
+  sorted.forEach(dep => {
+    const cfg = DEP_TYPE_CONFIG[dep.type] || DEP_TYPE_CONFIG.app;
+    const pct = (dep.ms / totalMs * 100).toFixed(1);
+    wfall += `<div style="width:${pct}%;background:${cfg.color};opacity:0.65;min-width:3px"
+      title="${dep.name}: ${dep.ms}ms (${pct}%)"></div>`;
+  });
+  wfall += `</div>
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px">`;
+  sorted.forEach(dep => {
+    const cfg = DEP_TYPE_CONFIG[dep.type] || DEP_TYPE_CONFIG.app;
+    wfall += `<div style="display:flex;align-items:center;gap:5px;
+                          font-family:var(--mono);font-size:10px;color:var(--muted)">
+  <div style="width:8px;height:8px;background:${cfg.color};border-radius:2px;opacity:0.7"></div>
+  ${dep.name}
+</div>`;
+  });
+  wfall += `</div></div></div>`;
+
+  container.style.padding = '20px';
+  container.innerHTML = svg + wfall;
+
+  // Animate waterfall bars after brief delay
+  requestAnimationFrame(() => setTimeout(() => {
+    container.querySelectorAll('[data-w]').forEach(el => {
+      el.style.width = el.dataset.w + '%';
+    });
+  }, 350));
+
+  document.getElementById('dep-total-badge').textContent =
+    `${deps.length} deps · ${totalMs.toFixed(0)}ms total`;
 }
 
 function finishPipeline(sc) {
@@ -1479,45 +1862,187 @@ function toggleBneck(id) {
 }
 
 // ─────────────────────────────────────────────
-// PR PANEL
+// PR PANEL — CHANGES + VALIDATION + PR
 // ─────────────────────────────────────────────
 let currentPrText = '';
+let _activeSc = null;
 
-function showPR(sc) {
-  currentPrText = sc.prText;
-  const html = sc.prText
+function mdToHtml(text) {
+  return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^> \*\*(.+)\*\*$/gm, '<p><strong>$1</strong></p>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/⚠️/g, '⚠️')
     .replace(/`(.+?)`/g, '<code>$1</code>')
     .replace(/^---$/gm, '<hr style="border-color:var(--border);margin:12px 0">')
     .replace(/^\| (.+) \|$/gm, row => {
       if (row.includes('---')) return '';
-      const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+      const cells = row.split('|').filter(c=>c.trim()).map(c=>`<td>${c.trim()}</td>`).join('');
       return `<tr>${cells}</tr>`;
     })
     .replace(/(<tr>.*<\/tr>\n)+/gs, m => `<table class="impact-table">${m}</table>`)
     .replace(/^- \[ \] (.+)$/gm, '<li>$1</li>')
     .replace(/(<li>.*<\/li>\n?)+/gs, m => `<ul class="checklist">${m}</ul>`)
     .replace(/\n/g, '<br>');
+}
+
+function renderDiff(diff) {
+  return diff
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .split('\\n')
+    .map(line => {
+      if (line.startsWith('+')) return `<span class="gdiff-add">${line}</span>`;
+      if (line.startsWith('-')) return `<span class="gdiff-del">${line}</span>`;
+      return `<span class="gdiff-ctx">${line}</span>`;
+    })
+    .join('\n');
+}
+
+function showPR(sc) {
+  currentPrText = sc.prText;
+  _activeSc = sc;
+  const changes = sc.changes || [];
+  const nFiles = changes.length;
 
   document.getElementById('pr-content').innerHTML = `
-    <div class="pr-header-row">
-      <span style="font-size:13px;font-weight:600">Branch</span>
-      <div class="branch-badge">🌿 ${sc.branch}</div>
-      <button class="copy-btn" id="copy-btn" onclick="copyPR()">Copy PR</button>
+
+  <div class="pr-section">
+    <div class="pr-section-title">
+      Changes Applied
+      <span style="color:var(--green);font-weight:600">✓ ${nFiles} file${nFiles!==1?'s':''} patched</span>
     </div>
-    <div class="pr-body">${html}</div>`;
+    ${changes.map(ch => `
+    <div class="change-file">
+      <div class="change-file-hdr">
+        <span class="change-path" title="${ch.file}">${ch.shortFile || ch.file}</span>
+        <span class="change-add">+${ch.added}</span><span class="change-del"> −${ch.removed}</span>
+      </div>
+      <pre class="change-diff">${renderDiff(ch.diff)}</pre>
+    </div>`).join('')}
+  </div>
+
+  <div class="pr-section">
+    <div class="pr-section-title">API Response Validation</div>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+      Re-hits the endpoint after applying fixes and compares HTTP status,
+      JSON response schema, and record count against the pre-fix baseline
+      to confirm nothing broke.
+    </p>
+    <button class="val-btn" id="val-run-btn" onclick="runValidation()">▶ Run Validation</button>
+    <div id="val-results" style="margin-top:16px"></div>
+  </div>
+
+  <div class="pr-section">
+    <div class="pr-section-title">Pull Request</div>
+    <div class="branch-badge" style="margin-bottom:12px">🌿 ${sc.branch}</div>
+    <div id="val-gate" class="val-gate">
+      ⚠ Validate the API response before creating the PR — or
+      <span class="skip-link" onclick="skipValidation()">skip</span>
+    </div>
+    <button class="create-pr-btn" id="create-pr-btn"
+            style="display:none;margin-bottom:16px" onclick="confirmCreatePR()">
+      Create PR →
+    </button>
+    <div class="pr-body">${mdToHtml(sc.prText)}</div>
+    <button class="copy-btn" id="copy-btn" style="margin-top:12px" onclick="copyPR()">
+      Copy PR Description
+    </button>
+  </div>`;
+}
+
+async function runValidation() {
+  const btn = document.getElementById('val-run-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Validating…';
+  const container = document.getElementById('val-results');
+  container.innerHTML = `<div style="font-family:var(--mono);font-size:12px;color:var(--muted)">Running…</div>`;
+
+  tlogHtml(`<span class="t-white">  ──────── API VALIDATION ────────</span>`);
+  await sleep(700);
+  tlogHtml(`<span class="t-white">  Re-hitting endpoint…</span>`);
+  await sleep(600);
+  tlogHtml(`<span class="t-white">  Comparing response schema and record count…</span>`);
+  await sleep(800);
+
+  const sc = _activeSc;
+  const v  = sc && sc.validation;
+  if (!v) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:12px">No validation data.</div>`;
+    btn.disabled = false; btn.textContent = '▶ Run Validation';
+    return;
+  }
+
+  const passed = v.schema_match
+    && v.status_before === v.status_after
+    && v.records_before === v.records_after;
+
+  tlogHtml(passed
+    ? `<span class="t-green">  ✓  PASSED — schema match · ${v.records_after} records · status ${v.status_after}</span>`
+    : `<span class="t-red">  ✗  FAILED — response differs from baseline</span>`);
+  tlogHtml(`<span class="t-white">  p95: ${v.p95_before}ms → ${v.p95_after}ms  (−${v.improvement_pct}%)</span>`);
+
+  container.innerHTML = `
+<div class="val-badge ${passed ? 'pass' : 'fail'}">${passed ? '✓ PASSED' : '✗ FAILED'}</div>
+<div class="val-results-grid">
+  <div class="val-row ${v.status_before===v.status_after?'ok':'fail'}">
+    <span>Status Code</span>
+    <span>${v.status_before} → ${v.status_after} ${v.status_before===v.status_after?'✓':'✗'}</span>
+  </div>
+  <div class="val-row ${v.schema_match?'ok':'fail'}">
+    <span>Response Schema</span>
+    <span>${v.schema_match ? '✓ Identical' : '✗ Changed'}</span>
+  </div>
+  <div class="val-row ${v.records_before===v.records_after?'ok':'fail'}">
+    <span>Record Count</span>
+    <span>${v.records_before} → ${v.records_after} ${v.records_before===v.records_after?'✓':'✗'}</span>
+  </div>
+  <div class="val-row ok">
+    <span>Payload Size</span>
+    <span>${v.payload_before.toLocaleString()} → ${v.payload_after.toLocaleString()} bytes ✓</span>
+  </div>
+</div>
+<div class="val-perf">
+  <span class="val-perf-before">p95 before: <strong>${v.p95_before}ms</strong></span>
+  <span style="color:var(--muted)">→</span>
+  <span class="val-perf-after">p95 after: <strong>${v.p95_after}ms</strong></span>
+  <span class="val-perf-delta">−${v.improvement_pct}% faster</span>
+</div>`;
+
+  btn.textContent = passed ? '✓ Done' : '✗ Failed';
+  btn.style.opacity = '0.6';
+
+  if (passed) {
+    document.getElementById('val-gate').style.display = 'none';
+    document.getElementById('create-pr-btn').style.display = 'inline-block';
+    const badge = document.getElementById('pr-status-badge');
+    if (badge) { badge.textContent = 'Validated ✓'; badge.style.color = 'var(--green)'; }
+  }
+}
+
+function skipValidation() {
+  document.getElementById('val-gate').style.display = 'none';
+  document.getElementById('create-pr-btn').style.display = 'inline-block';
+}
+
+function confirmCreatePR() {
+  const btn = document.getElementById('create-pr-btn');
+  btn.textContent = '✓ PR Created';
+  btn.style.background = 'var(--green)';
+  btn.disabled = true;
+  const sc = _activeSc;
+  tlogHtml(`<span class="t-green">  ✓  PR created on branch: ${sc ? sc.branch : '...'}</span>`);
+  tlogHtml(`<span class="t-cyan">     Command: gh pr create --title "perf: optimize PHP API" --base main --head ${sc ? sc.branch : '...'}</span>`);
+  const badge = document.getElementById('pr-status-badge');
+  if (badge) { badge.textContent = 'PR Created ✓'; badge.style.color = 'var(--green)'; }
 }
 
 function copyPR() {
   navigator.clipboard.writeText(currentPrText).then(() => {
     const btn = document.getElementById('copy-btn');
+    if (!btn) return;
     btn.textContent = '✓ Copied!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy PR'; btn.classList.remove('copied'); }, 2000);
+    setTimeout(() => { btn.textContent = 'Copy PR Description'; btn.classList.remove('copied'); }, 2000);
   });
 }
 

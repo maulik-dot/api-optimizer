@@ -126,6 +126,14 @@ def run_stage1(args, s1) -> dict | None:
     else:
         warn("Skipping profiling — API returned 5xx")
 
+    # Save baseline response for post-fix validation
+    try:
+        from validate_api import capture_baseline
+        baseline = capture_baseline(args.url, args.method, args.data or "")
+        report["baseline_response"] = baseline
+    except Exception:
+        pass
+
     report = s1.build_report(args.url, args.method, health, lang, latency)
     stage_done(1, time.time() - t0,
                f"  {lang['language'].upper()}  |  "
@@ -135,6 +143,34 @@ def run_stage1(args, s1) -> dict | None:
 
 
 # ─── stage 2 ───────────────────────────────────────────────────────────────────
+
+def run_dependency_analysis(args, report: dict) -> dict | None:
+    print(c("\n  ────── DEPENDENCY ANALYSIS ──────", "94"))
+    t0 = time.time()
+    try:
+        from detect_dependencies import analyze_dependencies
+        language  = report.get("language_detection", {}).get("language", "php")
+        total_ms  = report.get("latency_profile",    {}).get("p95_ms", 0) or 0
+        result    = analyze_dependencies(
+            source_path=args.source,
+            language=language,
+            total_ms=float(total_ms),
+            profile_http=False,
+        )
+        deps = result.get("dependencies", [])
+        ok(f"Detected {len(deps)} service dependencies  ({time.time()-t0:.1f}s)")
+        for d in deps:
+            pct = d["estimated_ms"] / float(total_ms) * 100 if total_ms else 0
+            flag = c("⚠ bottleneck", "91") if pct > 55 else c("ok", "92")
+            print(f"     {d['display']:<12}  {d['estimated_ms']:>4}ms  {pct:4.0f}%  {d['hits']} hits  [{flag}]")
+        if result.get("app_residual_ms"):
+            print(f"     {'App Logic':<12}  {result['app_residual_ms']:>4}ms  "
+                  f"{result['app_residual_ms']/float(total_ms)*100 if total_ms else 0:4.0f}%  computed residual")
+        return result
+    except Exception as e:
+        warn(f"Dependency analysis skipped: {e}")
+        return None
+
 
 def run_stage2(args, s2, report: dict) -> dict | None:
     stage_header(2, "AI ANALYSIS")
@@ -325,8 +361,50 @@ def run_stage3(args, s3, analysis: dict, out_dir: str, report_path: str) -> dict
     open(pr_path, "w").write(pr_md)
     ok(f"PR description: {pr_path}")
 
-    # Push
+    # Validate API response before push
+    if not args.dry_run and successful:
+        try:
+            from validate_api import validate as _validate
+            baseline_resp = None
+            if report_path:
+                import json as _json
+                try:
+                    with open(report_path.replace("stage1_report", "stage1_report")) as _f:
+                        _rep = _json.load(_f)
+                        baseline_resp = _rep.get("baseline_response")
+                except Exception:
+                    pass
+            if baseline_resp:
+                print(c("\n  ──────── VALIDATING API RESPONSE ────────", "94"))
+                val = _validate(args.url, baseline=baseline_resp, do_profile=True, profile_runs=5)
+                cmp = val["comparison"]
+                if cmp.get("passed"):
+                    ok(f"Validation PASSED — schema match, {cmp['records_after']} records, status {cmp['status_after']}")
+                    if val.get("performance_after", {}).get("p95"):
+                        ok(f"New p95: {val['performance_after']['p95']}ms")
+                else:
+                    warn("Validation FAILED — response differs from pre-fix baseline")
+                    for key in ("status_match", "schema_match", "records_match"):
+                        if not cmp.get(key):
+                            fail(f"  {key} is False")
+                    info("Review the diff before pushing.")
+        except Exception as e:
+            warn(f"Validation skipped: {e}")
+
+    # Push — always prompt for confirmation unless --push was explicitly set non-interactively
     if args.push and not args.dry_run and successful:
+        if sys.stdin.isatty():
+            print()
+            print(c(f"  Ready to push branch: {branch}", "96"))
+            ans = input(c("  Create PR? [y/N]: ", "93")).strip().lower()
+            if ans not in ("y", "yes"):
+                ok("Skipped. Push manually when ready:")
+                info(f"  git push origin {branch}")
+                info(f"  gh pr create --title 'perf: optimize {language} API' --base main --head {branch}")
+                return {
+                    "branch": branch, "patches_applied": patches_applied,
+                    "pr_path": pr_path, "n_ok": n_ok,
+                }
         if has_remote(repo_root):
             r = git(["push", "-u", "origin", branch], cwd=repo_root, check=False)
             if r.returncode == 0:
@@ -575,6 +653,16 @@ examples:
             stage_skip(3, "--profile-only flag set")
         print_summary(report, None, None, out_dir, time.time() - t_total)
         return
+
+    # ── DEPENDENCY ANALYSIS (Stage 1.5) ──────────────────────────────────────
+    dep_result = None
+    if args.source and report:
+        dep_result = run_dependency_analysis(args, report)
+        if dep_result:
+            dep_path = os.path.join(out_dir, "dependencies.json")
+            with open(dep_path, "w") as f:
+                json.dump(dep_result, f, indent=2)
+            ok(f"Saved: {dep_path}")
 
     # ── STAGE 2 ───────────────────────────────────────────────────────────────
     analysis = run_stage2(args, s2, report)
