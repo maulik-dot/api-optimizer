@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Optimizer Agent — IndiaMart</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg:        #0d1117;
+  --bg2:       #161b22;
+  --bg3:       #1c2128;
+  --border:    #30363d;
+  --blue:      #58a6ff;
+  --green:     #3fb950;
+  --yellow:    #d29922;
+  --red:       #f85149;
+  --purple:    #bc8cff;
+  --text:      #e6edf3;
+  --muted:     #7d8590;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Syne', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(88,166,255,.08) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none'/%3E%3Cpath d='M0 0h40v40H0z' fill='none' stroke='%2330363d' stroke-width='.3' stroke-dasharray='1 39'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 60px;
+  background: rgba(13,17,23,.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.4px;
+}
+
+.logo-bolt {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.logo-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.header-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(63,185,80,.1);
+  border: 1px solid rgba(63,185,80,.25);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  font-family: var(--mono);
+}
+
+.pulse {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(63,185,80,.4); }
+  50% { opacity: .7; transform: scale(.9); box-shadow: 0 0 0 6px rgba(63,185,80,0); }
+}
+
+/* ── MAIN LAYOUT ── */
+main {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-areas:
+    "form    stages"
+    "form    metrics"
+    "term    bottlenecks"
+    "term    pr";
+  gap: 20px;
+}
+
+@media (max-width: 960px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-areas: "form" "stages" "metrics" "bottlenecks" "pr" "term";
+  }
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.card-header-icon {
+  font-size: 14px;
+  margin-right: 7px;
+}
+
+.card-body { padding: 18px; }
+
+/* ── FORM ── */
+#form-card {
+  grid-area: form;
+  align-self: start;
+}
+
+.field { margin-bottom: 14px; }
+
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+input[type=text], select {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s;
+}
+
+input[type=text]:focus, select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(88,166,255,.15);
+}
+
+select option { background: var(--bg2); }
+
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-family: var(--mono);
+  cursor: pointer;
+  user-select: none;
+}
+
+.flag-row input[type=checkbox] {
+  width: 15px; height: 15px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.flag-row span { color: var(--blue); }
+.flag-row em { color: var(--muted); font-style: normal; font-size: 11px; }
+
+#run-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--blue), #1f6feb);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
+}
+
+#run-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.12), transparent);
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+#run-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(88,166,255,.35); }
+#run-btn:hover::after { opacity: 1; }
+#run-btn:active { transform: translateY(0); }
+#run-btn:disabled {
+  background: var(--bg3);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-inner { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* spinner inside button */
+.btn-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: none;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── STAGES ── */
+#stages-card { grid-area: stages; }
+
+.stages-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+@media (max-width: 680px) {
+  .stages-grid { grid-template-columns: 1fr; }
+}
+
+.stage {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  position: relative;
+  transition: border-color .3s, box-shadow .3s;
+}
+
+.stage.running {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 1px rgba(88,166,255,.2), inset 0 0 30px rgba(88,166,255,.04);
+}
+
+.stage.done {
+  border-color: rgba(63,185,80,.4);
+  box-shadow: 0 0 0 1px rgba(63,185,80,.1);
+}
+
+.stage.error { border-color: rgba(248,81,73,.4); }
+
+.stage-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.stage-icon .spinner-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--blue);
+  animation: spin .8s linear infinite;
+  display: none;
+}
+
+.stage.running .spinner-ring { display: block; }
+.stage.done .stage-icon { background: rgba(63,185,80,.1); border-color: rgba(63,185,80,.3); }
+.stage.error .stage-icon { background: rgba(248,81,73,.1); border-color: rgba(248,81,73,.3); }
+
+.stage-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.stage-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.stage-metric {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  transition: color .3s;
+}
+
+.stage.running .stage-metric { color: var(--blue); }
+.stage.done .stage-metric { color: var(--green); }
+
+.stage-elapsed {
+  position: absolute;
+  top: 12px; right: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── METRICS / CHART ── */
+#metrics-card { grid-area: metrics; }
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+
+.metric-pill {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  transition: color .3s;
+}
+
+.metric-value.p50 { color: var(--green); }
+.metric-value.p75 { color: #4ac26b; }
+.metric-value.p95 { color: var(--yellow); }
+.metric-value.p99 { color: var(--red); }
+
+.metric-unit {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chart-wrap {
+  padding: 16px;
+  position: relative;
+}
+
+.chart-runs {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  margin-bottom: 8px;
+}
+
+canvas#latency-chart {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── BOTTLENECKS ── */
+#bottleneck-card { grid-area: bottlenecks; }
+
+.bottleneck-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.bneck {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  animation: slideIn .4s ease both;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bneck-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .2s;
+}
+
+.bneck-header:hover { background: rgba(255,255,255,.03); }
+
+.severity {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.severity.critical { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
+.severity.high     { background: rgba(210,153,34,.15); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+.severity.medium   { background: rgba(88,166,255,.15); color: var(--blue); border: 1px solid rgba(88,166,255,.3); }
+
+.bneck-rank {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 28px;
+}
+
+.bneck-info { flex: 1; min-width: 0; }
+
+.bneck-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bneck-file {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bneck-saving {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.bneck-chevron {
+  color: var(--muted);
+  transition: transform .25s;
+  font-size: 12px;
+}
+
+.bneck.open .bneck-chevron { transform: rotate(180deg); }
+
+.bneck-body {
+  display: none;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.bneck.open .bneck-body { display: block; }
+
+.bneck-desc {
+  font-size: 13px;
+  color: #8b949e;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+
+.diff-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.diff-label.before { color: var(--red); }
+.diff-label.after  { color: var(--green); }
+
+pre.diff-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin-bottom: 12px;
+  white-space: pre;
+}
+
+/* PHP syntax highlighting */
+.kw  { color: #ff7b72; }
+.fn  { color: var(--blue); }
+.str { color: #a5d6ff; }
+.var { color: var(--purple); }
+.cmt { color: var(--muted); font-style: italic; }
+.num { color: #79c0ff; }
+
+/* ── PR PANEL ── */
+#pr-card { grid-area: pr; }
+
+.pr-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.branch-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(188,140,255,.1);
+  border: 1px solid rgba(188,140,255,.25);
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--purple);
+}
+
+.copy-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+
+.copy-btn:hover { background: var(--bg); border-color: var(--blue); color: var(--blue); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+.pr-body {
+  padding: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8b949e;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pr-body h2 { color: var(--text); font-size: 16px; margin: 16px 0 8px; }
+.pr-body h3 { color: var(--text); font-size: 14px; margin: 12px 0 6px; }
+.pr-body p  { margin-bottom: 8px; }
+.pr-body strong { color: var(--text); }
+.pr-body code { font-family: var(--mono); font-size: 12px; background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--blue); }
+
+.impact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.impact-table th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--bg3);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.impact-table td {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.impact-table td strong { color: var(--green); }
+
+.checklist { list-style: none; margin: 8px 0; }
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.checklist li::before {
+  content: '☐';
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* ── TERMINAL ── */
+#term-card {
+  grid-area: term;
+  align-self: start;
+}
+
+.term-body {
+  background: #010409;
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  height: 320px;
+  overflow-y: auto;
+  border-radius: 0 0 11px 11px;
+}
+
+.term-body::-webkit-scrollbar { width: 5px; }
+.term-body::-webkit-scrollbar-track { background: transparent; }
+.term-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.tline { display: block; animation: fadeInLine .15s ease; }
+@keyframes fadeInLine { from { opacity: 0; } to { opacity: 1; } }
+
+/* ANSI color classes */
+.t-cyan   { color: #56d4dd; }
+.t-green  { color: var(--green); }
+.t-yellow { color: var(--yellow); }
+.t-red    { color: var(--red); }
+.t-blue   { color: var(--blue); }
+.t-white  { color: var(--text); }
+.t-gray   { color: var(--muted); }
+.t-bold   { font-weight: 700; }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-icon { font-size: 32px; margin-bottom: 10px; opacity: .4; }
+.empty-text { font-size: 13px; }
+
+/* ── SCROLLBAR GLOBAL ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── HIDDEN ── */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-bolt">⚡</div>
+    <div>
+      <div>API Optimizer Agent</div>
+      <div class="logo-sub">IndiaMart · Performance Intelligence</div>
+    </div>
+  </div>
+  <div class="header-badge">
+    <div class="pulse"></div>
+    Ready
+  </div>
+</header>
+
+<main>
+
+  <!-- ── FORM ── -->
+  <div class="card" id="form-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">⚙</span>Pipeline Config</span>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>API Endpoint URL</label>
+        <input type="text" id="inp-url" value="http://localhost/api/products" placeholder="https://api.example.com/v1/products">
+      </div>
+      <div class="field">
+        <label>Source Path</label>
+        <input type="text" id="inp-source" value="./workspace/bagisto" placeholder="/path/to/repo">
+      </div>
+      <div class="field">
+        <label>LLM Model</label>
+        <select id="inp-model">
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          <option value="claude-4-sonnet-20250514">claude-4-sonnet-20250514</option>
+          <option value="gpt-4">gpt-4</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Flags</label>
+        <div class="flags">
+          <label class="flag-row">
+            <input type="checkbox" id="flag-dry" checked>
+            <span>--dry-run</span>
+            <em>no file writes</em>
+          </label>
+          <label class="flag-row">
+            <input type="checkbox" id="flag-profile">
+            <span>--profile-only</span>
+            <em>skip LLM</em>
+          </label>
+          <label class="flag-row">
+            <input type="checkbox" id="flag-push">
+            <span>--push</span>
+            <em>open PR</em>
+          </label>
+        </div>
+      </div>
+      <button id="run-btn" onclick="runPipeline()">
+        <div class="btn-inner">
+          <div class="btn-spinner" id="btn-spinner"></div>
+          <span id="btn-label">▶ Run Pipeline</span>
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STAGES ── -->
+  <div class="card" id="stages-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">🔄</span>Pipeline Stages</span>
+      <span id="total-time" class="t-gray" style="font-family:var(--mono);font-size:11px;"></span>
+    </div>
+    <div class="stages-grid">
+      <div class="stage" id="stage-1">
+        <div class="stage-elapsed" id="s1-elapsed"></div>
+        <div class="stage-icon">
+          <span id="s1-icon">1</span>
+          <div class="spinner-ring"></div>
+        </div>
+        <div class="stage-name">Stage 1</div>
+        <div class="stage-title">Profile + Detect</div>
+        <div class="stage-metric" id="s1-metric">Idle</div>
+      </div>
+      <div class="stage" id="stage-2">
+        <div class="stage-elapsed" id="s2-elapsed"></div>
+        <div class="stage-icon">
+          <span id="s2-icon">2</span>
+          <div class="spinner-ring"></div>
+        </div>
+        <div class="stage-name">Stage 2</div>
+        <div class="stage-title">AI Analysis</div>
+        <div class="stage-metric" id="s2-metric">Idle</div>
+      </div>
+      <div class="stage" id="stage-3">
+        <div class="stage-elapsed" id="s3-elapsed"></div>
+        <div class="stage-icon">
+          <span id="s3-icon">3</span>
+          <div class="spinner-ring"></div>
+        </div>
+        <div class="stage-name">Stage 3</div>
+        <div class="stage-title">Apply + PR</div>
+        <div class="stage-metric" id="s3-metric">Idle</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── METRICS ── -->
+  <div class="card" id="metrics-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">📊</span>Live Latency Metrics</span>
+      <span id="run-counter" class="t-gray" style="font-family:var(--mono);font-size:11px;">—</span>
+    </div>
+    <div class="metrics-row">
+      <div class="metric-pill">
+        <div class="metric-label">p50</div>
+        <div class="metric-value p50" id="m-p50">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-label">p75</div>
+        <div class="metric-value p75" id="m-p75">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-label">p95</div>
+        <div class="metric-value p95" id="m-p95">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-label">p99</div>
+        <div class="metric-value p99" id="m-p99">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-runs" id="chart-runs-label">Run pipeline to see live data</div>
+      <canvas id="latency-chart" width="800" height="160"></canvas>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>p50</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4ac26b"></div>p75</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#d29922"></div>p95</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>p99</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOTTLENECKS ── -->
+  <div class="card" id="bottleneck-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">🔍</span>Bottlenecks Detected</span>
+      <span id="bneck-count" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="bottleneck-list">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">Run the pipeline to detect bottlenecks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PR ── -->
+  <div class="card" id="pr-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">🔀</span>Generated PR</span>
+    </div>
+    <div id="pr-content">
+      <div class="empty-state">
+        <div class="empty-icon">🔀</div>
+        <div class="empty-text">PR description will appear after Stage 3</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TERMINAL ── -->
+  <div class="card" id="term-card">
+    <div class="card-header">
+      <span><span class="card-header-icon">⬛</span>Terminal Output</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">stdout</span>
+    </div>
+    <div class="term-body" id="terminal">
+      <span class="tline t-gray">$ api-optimizer v1.0.0 ready. Click "Run Pipeline" to start.</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('latency-chart');
+const ctx = canvas.getContext('2d');
+const chartData = { p50: [], p75: [], p95: [], p99: [] };
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width  = rect.width - 32;
+  canvas.height = 160;
+  drawChart();
+}
+
+function drawChart() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const series = [
+    { key: 'p50', color: '#3fb950' },
+    { key: 'p75', color: '#4ac26b' },
+    { key: 'p95', color: '#d29922' },
+    { key: 'p99', color: '#f85149' },
+  ];
+
+  const allVals = Object.values(chartData).flat();
+  if (!allVals.length) {
+    ctx.fillStyle = '#30363d';
+    ctx.font = '12px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet', W / 2, H / 2);
+    return;
+  }
+
+  const maxVal = Math.max(...allVals, 100);
+  const pad = { top: 12, right: 12, bottom: 28, left: 44 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+  const nPoints = chartData.p50.length;
+
+  // Grid
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillStyle = '#7d8590';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal * (1 - i / 4)) + 'ms', pad.left - 6, y + 4);
+  }
+
+  // Lines
+  series.forEach(({ key, color }) => {
+    const data = chartData[key];
+    if (!data.length) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = pad.left + (i / Math.max(nPoints - 1, 1)) * cw;
+      const y = pad.top + ch * (1 - v / maxVal);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Dots on last point
+    if (data.length) {
+      const lx = pad.left + ((data.length - 1) / Math.max(nPoints - 1, 1)) * cw;
+      const ly = pad.top + ch * (1 - data[data.length - 1] / maxVal);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // X-axis labels
+  ctx.fillStyle = '#7d8590';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  [0, 5, 10, 15, 19].forEach(i => {
+    if (i < nPoints) {
+      const x = pad.left + (i / Math.max(nPoints - 1, 1)) * cw;
+      ctx.fillText(`r${i + 1}`, x, H - 4);
+    }
+  });
+}
+
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 100);
+
+// ─────────────────────────────────────────────
+// TERMINAL
+// ─────────────────────────────────────────────
+const term = document.getElementById('terminal');
+
+function tlog(text, cls = '') {
+  const line = document.createElement('span');
+  line.className = 'tline' + (cls ? ' ' + cls : '');
+  line.textContent = text;
+  term.appendChild(line);
+  term.appendChild(document.createTextNode('\n'));
+  term.scrollTop = term.scrollHeight;
+}
+
+function tlogHtml(html) {
+  const wrapper = document.createElement('span');
+  wrapper.className = 'tline';
+  wrapper.innerHTML = html;
+  term.appendChild(wrapper);
+  term.appendChild(document.createTextNode('\n'));
+  term.scrollTop = term.scrollHeight;
+}
+
+// ─────────────────────────────────────────────
+// STAGE HELPERS
+// ─────────────────────────────────────────────
+let stageTimers = {};
+
+function stageStart(n) {
+  const el = document.getElementById(`stage-${n}`);
+  el.className = 'stage running';
+  document.getElementById(`s${n}-metric`).textContent = 'Running…';
+  stageTimers[n] = { start: Date.now() };
+  const tick = () => {
+    if (!stageTimers[n] || stageTimers[n].done) return;
+    const s = ((Date.now() - stageTimers[n].start) / 1000).toFixed(1);
+    document.getElementById(`s${n}-elapsed`).textContent = s + 's';
+    setTimeout(tick, 100);
+  };
+  tick();
+}
+
+function stageDone(n, metric, icon = '✓') {
+  const el = document.getElementById(`stage-${n}`);
+  el.className = 'stage done';
+  document.getElementById(`s${n}-icon`).textContent = icon;
+  document.getElementById(`s${n}-metric`).textContent = metric;
+  if (stageTimers[n]) {
+    stageTimers[n].done = true;
+    const s = ((Date.now() - stageTimers[n].start) / 1000).toFixed(1);
+    document.getElementById(`s${n}-elapsed`).textContent = s + 's';
+  }
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function animateCounter(el, from, to, dur = 600) {
+  const start = performance.now();
+  const step = ts => {
+    const p = Math.min((ts - start) / dur, 1);
+    el.textContent = Math.round(from + (to - from) * p);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ─────────────────────────────────────────────
+// SIMULATED DATA
+// ─────────────────────────────────────────────
+// 20 realistic profiling run times (ms)
+const simulatedRuns = [
+  285, 312, 267, 298, 340, 271, 456, 283, 276, 301,
+  295, 388, 269, 274, 310, 558, 288, 265, 292, 392
+];
+
+function computePercentile(arr, p) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return +(sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)).toFixed(1);
+}
+
+// ─────────────────────────────────────────────
+// MAIN PIPELINE SIMULATION
+// ─────────────────────────────────────────────
+let running = false;
+const pipelineStart = { t: 0 };
+
+async function runPipeline() {
+  if (running) return;
+  running = true;
+
+  // Reset UI
+  term.innerHTML = '';
+  Object.assign(chartData, { p50: [], p75: [], p95: [], p99: [] });
+  drawChart();
+  document.getElementById('bottleneck-list').innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Analyzing…</div></div>`;
+  document.getElementById('pr-content').innerHTML = `<div class="empty-state"><div class="empty-icon">🔀</div><div class="empty-text">Waiting for Stage 3…</div></div>`;
+  document.getElementById('bneck-count').textContent = '';
+  document.getElementById('total-time').textContent = '';
+  ['m-p50','m-p75','m-p95','m-p99'].forEach(id => document.getElementById(id).textContent = '—');
+  document.getElementById('run-counter').textContent = '—';
+  [1,2,3].forEach(n => {
+    document.getElementById(`stage-${n}`).className = 'stage';
+    document.getElementById(`s${n}-icon`).textContent = n;
+    document.getElementById(`s${n}-metric`).textContent = 'Idle';
+    document.getElementById(`s${n}-elapsed`).textContent = '';
+    stageTimers[n] = null;
+  });
+
+  // Update button
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('btn-spinner').style.display = 'block';
+  document.getElementById('btn-label').textContent = 'Running…';
+  document.querySelector('.header-badge').innerHTML = '<div class="pulse" style="background:var(--blue)"></div> Running';
+
+  const url    = document.getElementById('inp-url').value || 'http://localhost/api/products';
+  const source = document.getElementById('inp-source').value || './workspace/bagisto';
+  const model  = document.getElementById('inp-model').value;
+  const dryRun = document.getElementById('flag-dry').checked;
+  const profOnly = document.getElementById('flag-profile').checked;
+
+  pipelineStart.t = Date.now();
+
+  // ── BANNER ──
+  tlogHtml(`<span class="t-cyan t-bold">  ╔══════════════════════════════════════════════════════╗</span>`);
+  tlogHtml(`<span class="t-cyan t-bold">  ║        API OPTIMIZER AGENT  ⚡  IndiaMart           ║</span>`);
+  tlogHtml(`<span class="t-cyan t-bold">  ║   Profile → Diagnose → Fix → PR  in one command     ║</span>`);
+  tlogHtml(`<span class="t-cyan t-bold">  ╚══════════════════════════════════════════════════════╝</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-cyan">  Endpoint  : ${url}</span>`);
+  tlogHtml(`<span class="t-cyan">  Source    : ${source}</span>`);
+  tlogHtml(`<span class="t-cyan">  Model     : ${model}</span>`);
+  if (dryRun) tlogHtml(`<span class="t-yellow">  Flags     : dry-run</span>`);
+  tlog('');
+
+  // ═══════════════════════════════════
+  // STAGE 1
+  // ═══════════════════════════════════
+  tlogHtml(`<span class="t-blue t-bold">  ┌──────────────────────────────────────────────────────┐</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  │  STAGE 1  —  PROFILE + DETECT                        │</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  └──────────────────────────────────────────────────────┘</span>`);
+  tlog('');
+
+  stageStart(1);
+
+  // Health check
+  tlogHtml(`<span class="t-white">  ──────── HEALTH CHECK ────────</span>`);
+  tlogHtml(`<span class="t-white">     Endpoint : ${url}</span>`);
+  await sleep(600);
+  tlogHtml(`<span class="t-green">  HTTP 200</span><span class="t-white">  —  558 ms</span>`);
+  tlogHtml(`<span class="t-green">  ✓  API is reachable and returned success</span>`);
+  tlogHtml(`<span class="t-green">  ✓  Response is valid JSON (34161 bytes)</span>`);
+  await sleep(400);
+  tlog('');
+
+  // Language detection
+  tlogHtml(`<span class="t-white">  ──────── LANGUAGE DETECTION ────────</span>`);
+  await sleep(300);
+  tlogHtml(`<span class="t-white">  Language   : 🐘 PHP</span>`);
+  tlogHtml(`<span class="t-yellow">  Confidence : MEDIUM</span>`);
+  tlogHtml(`<span class="t-white">     Source files : 18220 PHP  |  0 Go</span>`);
+  tlogHtml(`<span class="t-white">     Evidence:</span>`);
+  tlogHtml(`<span class="t-white">       • [from source] composer.json found (PHP project)</span>`);
+  tlogHtml(`<span class="t-white">       • [from source]   └─ Laravel framework detected</span>`);
+  tlogHtml(`<span class="t-white">       • [from source] 18220 .php files found</span>`);
+  await sleep(400);
+  tlog('');
+
+  // Profiling runs
+  tlogHtml(`<span class="t-white">  ──────── LATENCY PROFILING  (20 runs) ────────</span>`);
+  await sleep(200);
+
+  const partialRuns = [];
+  for (let i = 0; i < simulatedRuns.length; i++) {
+    await sleep(370);
+    partialRuns.push(simulatedRuns[i]);
+    const p50v = computePercentile(partialRuns, 50);
+    const p75v = computePercentile(partialRuns, 75);
+    const p95v = computePercentile(partialRuns, 95);
+    const p99v = computePercentile(partialRuns, 99);
+
+    chartData.p50.push(p50v);
+    chartData.p75.push(p75v);
+    chartData.p95.push(p95v);
+    chartData.p99.push(p99v);
+    drawChart();
+
+    // Update metric pills with animation
+    const prevP50 = i > 0 ? chartData.p50[i - 1] : p50v;
+    animateCounter(document.getElementById('m-p50'), prevP50, p50v, 300);
+    animateCounter(document.getElementById('m-p75'), i > 0 ? chartData.p75[i-1] : p75v, p75v, 300);
+    animateCounter(document.getElementById('m-p95'), i > 0 ? chartData.p95[i-1] : p95v, p95v, 300);
+    animateCounter(document.getElementById('m-p99'), i > 0 ? chartData.p99[i-1] : p99v, p99v, 300);
+    document.getElementById('run-counter').textContent = `${i + 1}/20 runs`;
+    document.getElementById('chart-runs-label').textContent = `${i + 1} / 20 profiling runs complete`;
+    document.getElementById(`s1-metric`).textContent = `${i + 1}/20 • p95=${p95v}ms`;
+  }
+
+  tlog('');
+  tlogHtml(`<span class="t-white">  Metric            ms</span>`);
+  tlogHtml(`<span class="t-white">  ──────────────────────</span>`);
+  tlogHtml(`<span class="t-white">  p50            267.0</span>`);
+  tlogHtml(`<span class="t-white">  p75            310.5</span>`);
+  tlogHtml(`<span class="t-yellow">  p95            392.1</span>`);
+  tlogHtml(`<span class="t-red">  p99            558.0</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-white">  LAYER BREAKDOWN (mean)</span>`);
+  tlogHtml(`<span class="t-white">  ──────────────────────</span>`);
+  tlogHtml(`<span class="t-white">  DNS            0.0 ms          0%</span>`);
+  tlogHtml(`<span class="t-white">  TCP            0.2 ms          0%</span>`);
+  tlogHtml(`<span class="t-yellow">  App logic    295.5 ms  ███████████  100% ← BOTTLENECK</span>`);
+  tlogHtml(`<span class="t-white">  Body xfer      0.4 ms          0%</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-yellow">  ⚠  p95 392.1ms is above 200ms — watch for growth</span>`);
+  tlog('');
+
+  stageDone(1, 'PHP · p95=392.1ms · app=295.5ms', '✓');
+
+  if (profOnly) {
+    tlogHtml(`<span class="t-gray">  STAGE 2 SKIPPED  —  --profile-only flag set</span>`);
+    tlogHtml(`<span class="t-gray">  STAGE 3 SKIPPED  —  --profile-only flag set</span>`);
+    finishPipeline(false);
+    return;
+  }
+
+  await sleep(400);
+
+  // ═══════════════════════════════════
+  // STAGE 2
+  // ═══════════════════════════════════
+  tlogHtml(`<span class="t-blue t-bold">  ┌──────────────────────────────────────────────────────┐</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  │  STAGE 2  —  AI ANALYSIS                             │</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  └──────────────────────────────────────────────────────┘</span>`);
+  tlog('');
+
+  stageStart(2);
+  document.getElementById('s2-metric').textContent = `Loading source…`;
+
+  tlogHtml(`<span class="t-green">  ✓  Source loaded (23,133 chars)</span>`);
+  await sleep(800);
+
+  // LLM thinking animation
+  tlogHtml(`<span class="t-white">  Calling LLM (${model})…</span>`);
+  document.getElementById('s2-metric').textContent = `Calling ${model}…`;
+
+  const thinkDots = ['⣾','⣽','⣻','⢿','⡿','⣟','⣯','⣷'];
+  let dotIdx = 0;
+  const thinkInterval = setInterval(() => {
+    document.getElementById('s2-metric').textContent = `${thinkDots[dotIdx % thinkDots.length]} LLM thinking…`;
+    dotIdx++;
+  }, 120);
+
+  await sleep(22000); // realistic LLM wait
+
+  clearInterval(thinkInterval);
+
+  tlogHtml(`<span class="t-green">  done  (21.3s)</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-cyan t-bold">  ────────── ANALYSIS SUMMARY ──────────</span>`);
+  tlogHtml(`<span class="t-white">     N+1 query pattern in product data retrieval.</span>`);
+  tlogHtml(`<span class="t-white">     Eager loading can reduce latency by ~150ms.</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-green">  Total estimated improvement : 150 ms  (51%)</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-cyan t-bold">  ────────── BOTTLENECKS  (1 found) ──────────</span>`);
+  tlogHtml(`<span class="t-white">  </span><span class="t-bold">#1</span><span class="t-red">  N PLUS ONE QUERY</span><span class="t-red">  [critical]</span><span class="t-green">  save ~150ms</span>`);
+  tlogHtml(`<span class="t-white">     📁 packages/Webkul/Shop/.../ProductController.php:40-49</span>`);
+  tlogHtml(`<span class="t-white">     ProductResource::collection triggers N+1 DB queries per product.</span>`);
+  tlog('');
+
+  stageDone(2, '1 bottleneck · −150ms (−51%)', '✓');
+
+  // Show bottleneck cards
+  showBottlenecks();
+
+  await sleep(600);
+
+  // ═══════════════════════════════════
+  // STAGE 3
+  // ═══════════════════════════════════
+  tlogHtml(`<span class="t-blue t-bold">  ┌──────────────────────────────────────────────────────┐</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  │  STAGE 3  —  APPLY FIXES + PR                        │</span>`);
+  tlogHtml(`<span class="t-blue t-bold">  └──────────────────────────────────────────────────────┘</span>`);
+  tlog('');
+
+  stageStart(3);
+  document.getElementById('s3-metric').textContent = 'Patching…';
+
+  tlogHtml(`<span class="t-green">  ✓  Git repo: ${source}</span>`);
+  tlogHtml(`<span class="t-white">     Would create branch: api-optimizer/php-20260515-1855</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-white">  Patching #1 — </span><span class="t-yellow">n plus one query</span>`);
+  await sleep(900);
+  tlogHtml(`<span class="t-green">  ✓  Applied via </span><span class="t-cyan">exact</span><span class="t-green">  (±8 lines)</span>`);
+  tlogHtml(`<span class="t-green">  ✓  PR description generated</span>`);
+
+  stageDone(3, '1/1 fixes · branch ready', '✓');
+
+  // Show PR
+  showPR();
+
+  await sleep(300);
+  finishPipeline(true);
+}
+
+function finishPipeline(success) {
+  const total = ((Date.now() - pipelineStart.t) / 1000).toFixed(1);
+  tlog('');
+  tlogHtml(`<span class="t-green t-bold">  ╔══════════════════════════════════════════════════════╗</span>`);
+  tlogHtml(`<span class="t-green t-bold">  ║                    PIPELINE COMPLETE                 ║</span>`);
+  tlogHtml(`<span class="t-green t-bold">  ╚══════════════════════════════════════════════════════╝</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-white">  STAGE 1 — p50=267ms · p95=392ms · app=295.5ms</span>`);
+  tlogHtml(`<span class="t-white">  STAGE 2 — 1 bottleneck · estimated −150ms (−51%)</span>`);
+  tlogHtml(`<span class="t-white">  STAGE 3 — 1/1 fixes applied · branch: api-optimizer/php-20260515-1855</span>`);
+  tlog('');
+  tlogHtml(`<span class="t-gray">  TOTAL TIME  : ${total}s</span>`);
+
+  document.getElementById('total-time').textContent = `${total}s total`;
+  document.getElementById('run-btn').disabled = false;
+  document.getElementById('btn-spinner').style.display = 'none';
+  document.getElementById('btn-label').textContent = '▶ Run Pipeline';
+  document.querySelector('.header-badge').innerHTML = '<div class="pulse"></div> Ready';
+  running = false;
+}
+
+// ─────────────────────────────────────────────
+// BOTTLENECK CARDS
+// ─────────────────────────────────────────────
+function phpHighlight(code) {
+  return code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\b(public|private|protected|function|return|if|foreach|new|class|namespace|use|array|true|false|null)\b/g, '<span class="kw">$1</span>')
+    .replace(/(\$[\w]+)/g, '<span class="var">$1</span>')
+    .replace(/(\/\/.*$)/gm, '<span class="cmt">$1</span>')
+    .replace(/('.*?'|".*?")/g, '<span class="str">$1</span>')
+    .replace(/\b(\d+)\b/g, '<span class="num">$1</span>')
+    .replace(/\b(with|getAll|setSearchEngine|ProductResource|collection|paginate|dispatch)\b/g, '<span class="fn">$1</span>');
+}
+
+const BEFORE_CODE = `$products = $this->productRepository
+    ->setSearchEngine($searchEngine)
+    ->getAll(array_merge(request()->query(), [
+        'query'                => $query,
+        'channel_id'           => core()->getCurrentChannel()->id,
+        'status'               => 1,
+        'visible_individually' => 1,
+    ]));`;
+
+const AFTER_CODE = `// Eager load to eliminate N+1 queries
+$products = $this->productRepository
+    ->setSearchEngine($searchEngine)
+    ->getAll(array_merge(request()->query(), [
+        'query'                => $query,
+        'channel_id'           => core()->getCurrentChannel()->id,
+        'status'               => 1,
+        'visible_individually' => 1,
+        'with' => ['images', 'categories', 'prices', 'attributes'],
+    ]));`;
+
+function showBottlenecks() {
+  document.getElementById('bneck-count').textContent = '1 found';
+  const list = document.getElementById('bottleneck-list');
+  list.innerHTML = `
+  <div class="bottleneck-list">
+    <div class="bneck open" id="bneck-1">
+      <div class="bneck-header" onclick="toggleBneck('bneck-1')">
+        <span class="bneck-rank">#1</span>
+        <span class="severity critical">Critical</span>
+        <div class="bneck-info">
+          <div class="bneck-title">N+1 Query — Missing Eager Load</div>
+          <div class="bneck-file">packages/Webkul/Shop/…/ProductController.php:40–49</div>
+        </div>
+        <span class="bneck-saving">−150ms (−51%)</span>
+        <span class="bneck-chevron">▼</span>
+      </div>
+      <div class="bneck-body">
+        <p class="bneck-desc">
+          <code>ProductResource::collection($products)</code> triggers a separate DB query for each product when
+          accessing relationships (images, categories, prices, attributes). With 31 products, this is 31× the
+          expected query count — inflating app-layer time from ~50ms to ~295ms.
+        </p>
+        <div class="diff-label before">Before</div>
+        <pre class="diff-code">${phpHighlight(BEFORE_CODE)}</pre>
+        <div class="diff-label after">After</div>
+        <pre class="diff-code">${phpHighlight(AFTER_CODE)}</pre>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleBneck(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+// ─────────────────────────────────────────────
+// PR PANEL
+// ─────────────────────────────────────────────
+const PR_TEXT = `## 🐘 API Performance Optimization — PHP
+
+> **Primary bottleneck: N+1 DB queries in product listing. Eager loading relationships eliminates per-product round-trips.**
+
+---
+
+## 📊 Impact Summary
+
+| Metric | Value |
+|--------|-------|
+| Estimated latency reduction | **150 ms** |
+| Percentage improvement | **51%** |
+| Bottlenecks fixed | **1** |
+
+---
+
+## 🔍 Bottleneck Fixed
+
+**#1 — N+1 Query** ✅ applied
+**File:** \`packages/Webkul/Shop/src/Http/Controllers/API/ProductController.php\`  **Lines:** 40–49  **Saves:** ~150ms
+
+Added eager loading of \`images\`, \`categories\`, \`prices\`, \`attributes\` to the \`getAll()\` call, eliminating per-product DB queries.
+
+---
+
+## ✅ Test Checklist
+
+- [ ] Run: \`php artisan test\`
+- [ ] Verify API response matches pre-fix output
+- [ ] Check p95 latency on staging (target: <200ms)
+- [ ] Confirm no new errors in application logs
+- [ ] Load test at 2× normal RPS for 5 minutes
+
+---
+
+*Generated by API Optimizer Agent on 2026-05-15 18:55 UTC*
+*Branch: \`api-optimizer/php-20260515-1855\`*`;
+
+function showPR() {
+  const html = PR_TEXT
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^> \*\*(.+)\*\*$/gm, '<p><strong>$1</strong></p>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^---$/gm, '<hr style="border-color:var(--border);margin:12px 0">')
+    .replace(/^\| (.+) \|$/gm, row => {
+      if (row.includes('---')) return '';
+      const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .replace(/(<tr>.*<\/tr>\n)+/gs, m => `<table class="impact-table">${m}</table>`)
+    .replace(/^- \[ \] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/gs, m => `<ul class="checklist">${m}</ul>`)
+    .replace(/\n/g, '<br>');
+
+  document.getElementById('pr-content').innerHTML = `
+    <div class="pr-header-row">
+      <span style="font-size:13px;font-weight:600">Branch</span>
+      <div class="branch-badge">🌿 api-optimizer/php-20260515-1855</div>
+      <button class="copy-btn" id="copy-btn" onclick="copyPR()">Copy PR</button>
+    </div>
+    <div class="pr-body">${html}</div>`;
+}
+
+function copyPR() {
+  navigator.clipboard.writeText(PR_TEXT).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy PR'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// Initial chart draw
+drawChart();
+</script>
+</body>
+</html>

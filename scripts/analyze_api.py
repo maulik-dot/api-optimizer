@@ -51,7 +51,7 @@ SKIP_DIRS  = {"vendor", "node_modules", ".git", "storage", "bootstrap/cache",
               "public", "resources/js", "resources/css"}
 SKIP_FILES = {"_test.go", "_mock.go", ".min.php", "autoload.php"}
 
-MAX_SOURCE_CHARS = 40_000   # keep prompt size manageable
+MAX_SOURCE_CHARS = 20_000   # keep prompt size manageable
 
 
 def _should_skip(path: str) -> bool:
@@ -455,7 +455,8 @@ def main():
                 {"role": "user",   "content": user_prompt},
             ],
             temperature=0.2,
-            max_tokens=4096,
+            max_tokens=16384,
+            response_format={"type": "json_object"},
         )
         print(c("  done", "92"))
     except PermissionError as e:
