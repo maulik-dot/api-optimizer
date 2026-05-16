@@ -124,6 +124,7 @@ main {
   display: grid;
   grid-template-columns: 320px 1fr;
   grid-template-areas:
+    "history stages"
     "form    stages"
     "form    metrics"
     "term    dep-graph"
@@ -135,7 +136,7 @@ main {
 @media (max-width: 960px) {
   main {
     grid-template-columns: 1fr;
-    grid-template-areas: "form" "stages" "metrics" "dep-graph" "bottlenecks" "pr" "term";
+    grid-template-areas: "history" "form" "stages" "metrics" "dep-graph" "bottlenecks" "pr" "term";
   }
 }
 
@@ -744,6 +745,115 @@ pre.diff-code {
 /* ── HIDDEN ── */
 .hidden { display: none !important; }
 
+/* ── RUN HISTORY STRIP ── */
+#run-history-strip {
+  grid-area: history;
+  align-self: end;
+  padding: 0;
+  display: none;
+}
+#run-history-strip .history-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.history-chips {
+  display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 12px 0;
+}
+.history-chip {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px; font-size: 12px;
+  cursor: pointer; font-family: var(--mono); color: var(--text);
+  transition: border-color .2s, background .2s;
+  white-space: nowrap;
+}
+.history-chip:hover { border-color: var(--blue); background: var(--bg3); }
+
+/* ── CLI PREVIEW ── */
+#cli-preview-wrap {
+  background: #010409;
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  position: relative;
+  margin-top: 14px;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+#cli-copy-btn {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 11px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); padding: 2px 7px; cursor: pointer;
+  font-family: var(--mono); transition: color .2s, border-color .2s;
+}
+#cli-copy-btn:hover { color: var(--blue); border-color: var(--blue); }
+
+/* ── GAUGE CARD ── */
+#gauge-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; width: 280px;
+  flex-shrink: 0;
+  animation: slideIn .5s ease both;
+}
+#gauge-card .gauge-body {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 16px 16px;
+}
+#gauge-svg-wrap { position: relative; width: 220px; height: 220px; }
+#gauge-svg-wrap .gauge-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+#gauge-pct {
+  font-family: var(--mono); font-size: 48px; font-weight: 700; line-height: 1;
+}
+#gauge-label {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  letter-spacing: .07em; text-transform: uppercase; margin-top: 4px;
+}
+#gauge-vals {
+  font-family: var(--mono); font-size: 13px; color: var(--text);
+  margin-top: 10px; text-align: center;
+}
+
+/* ── ENDPOINT INFO BADGE ── */
+#endpoint-info {
+  display: none;
+  margin-top: 8px;
+  padding: 7px 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#endpoint-info .ep-p95 { color: var(--yellow); font-weight: 700; }
+#endpoint-info .ep-p95.fast { color: var(--green); }
+#endpoint-info .ep-hint { color: var(--muted); }
+#endpoint-info .ep-cat {
+  margin-left: auto;
+  padding: 1px 7px;
+  background: rgba(88,166,255,.1);
+  border-radius: 10px;
+  color: var(--blue);
+  font-size: 10px;
+}
+
+/* keyboard hint */
+.kbd-hint {
+  font-family: var(--mono); font-size: 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px; color: var(--muted);
+}
+
 /* ── PR SECTIONS ── */
 .pr-section { padding: 16px 18px; border-bottom: 1px solid var(--border); }
 .pr-section:last-child { border-bottom: none; }
@@ -880,44 +990,101 @@ pre.diff-code {
 
 <main>
 
+  <!-- ── HISTORY STRIP ── -->
+  <div id="run-history-strip">
+    <div class="history-label">Recent Runs</div>
+    <div class="history-chips" id="history-chips"></div>
+  </div>
+
   <!-- ── FORM ── -->
   <div class="card" id="form-card">
     <div class="card-header">
       <span><span class="card-header-icon">⚙</span>Pipeline Config</span>
+      <span class="kbd-hint">[Shift+R]</span>
     </div>
     <div class="card-body">
       <div class="field">
-        <label>API Endpoint URL</label>
-        <input type="text" id="inp-url" value="http://localhost/api/products" placeholder="https://api.example.com/v1/products">
+        <label>API Endpoint</label>
+        <select id="inp-endpoint" onchange="onEndpointChange()">
+          <optgroup label="— Products —">
+            <option value="http://localhost/api/products" selected>GET /api/products  ⚠ p95 ~392ms</option>
+            <option value="http://localhost/api/products/1/related">GET /api/products/{id}/related</option>
+            <option value="http://localhost/api/products/1/up-sell">GET /api/products/{id}/up-sell</option>
+          </optgroup>
+          <optgroup label="— Categories —">
+            <option value="http://localhost/api/categories">GET /api/categories  p95 ~73ms</option>
+            <option value="http://localhost/api/categories/tree">GET /api/categories/tree</option>
+            <option value="http://localhost/api/categories/max-price">GET /api/categories/max-price</option>
+            <option value="http://localhost/api/categories/attributes">GET /api/categories/attributes</option>
+            <option value="http://localhost/api/categories/attributes/1/options">GET /api/categories/attributes/{id}/options</option>
+          </optgroup>
+          <optgroup label="— Reviews &amp; Compare —">
+            <option value="http://localhost/api/product/1/reviews">GET /api/product/{id}/reviews</option>
+            <option value="http://localhost/api/compare-items">GET /api/compare-items</option>
+          </optgroup>
+          <optgroup label="— Checkout —">
+            <option value="http://localhost/api/checkout/cart">GET /api/checkout/cart</option>
+            <option value="http://localhost/api/checkout/cart/cross-sell">GET /api/checkout/cart/cross-sell</option>
+            <option value="http://localhost/api/checkout/onepage/summary">GET /api/checkout/onepage/summary</option>
+          </optgroup>
+          <optgroup label="— Core —">
+            <option value="http://localhost/api/core/countries">GET /api/core/countries</option>
+            <option value="http://localhost/api/core/states">GET /api/core/states</option>
+          </optgroup>
+          <option value="custom">&#9999; Custom URL</option>
+        </select>
+        <input type="text" id="inp-url" value="http://localhost/api/products"
+               placeholder="https://api.example.com/v1/products"
+               style="margin-top:6px"
+               oninput="updateCliPreview();updateEndpointInfo(this.value)">
+        <div id="endpoint-info">
+          <span id="ep-p95-badge" class="ep-p95">p95 ~392ms</span>
+          <span id="ep-hint-badge" class="ep-hint">N+1 query · eager load fix</span>
+          <span id="ep-cat-badge" class="ep-cat">Products</span>
+        </div>
       </div>
       <div class="field">
         <label>Source Path</label>
-        <input type="text" id="inp-source" value="./workspace/bagisto" placeholder="/path/to/repo">
+        <input type="text" id="inp-source" value="./workspace/bagisto" placeholder="/path/to/repo" oninput="updateCliPreview()">
       </div>
       <div class="field">
         <label>LLM Model</label>
-        <select id="inp-model">
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-          <option value="claude-4-sonnet-20250514">claude-4-sonnet-20250514</option>
-          <option value="gpt-4">gpt-4</option>
-          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        <select id="inp-model" onchange="updateCliPreview()">
+          <optgroup label="&#9889; Google">
+            <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+          </optgroup>
+          <optgroup label="&#10022; Anthropic">
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+            <option value="claude-opus-4-7">claude-opus-4-7</option>
+            <option value="claude-haiku-4-5-20251001">claude-haiku-4-5</option>
+          </optgroup>
+          <optgroup label="&#9679; OpenAI">
+            <option value="gpt-4o">gpt-4o</option>
+            <option value="gpt-4">gpt-4</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+          </optgroup>
+          <optgroup label="&#9670; Meta / Open">
+            <option value="llama-3.3-70b">llama-3.3-70b</option>
+            <option value="mistral-large">mistral-large</option>
+          </optgroup>
         </select>
       </div>
       <div class="field">
         <label>Flags</label>
         <div class="flags">
           <label class="flag-row">
-            <input type="checkbox" id="flag-dry" checked>
+            <input type="checkbox" id="flag-dry" checked onchange="updateCliPreview()">
             <span>--dry-run</span>
             <em>no file writes</em>
           </label>
           <label class="flag-row">
-            <input type="checkbox" id="flag-profile">
+            <input type="checkbox" id="flag-profile" onchange="updateCliPreview()">
             <span>--profile-only</span>
             <em>skip LLM</em>
           </label>
           <label class="flag-row">
-            <input type="checkbox" id="flag-push">
+            <input type="checkbox" id="flag-push" onchange="updateCliPreview()">
             <span>--push</span>
             <em>open PR</em>
           </label>
@@ -926,9 +1093,10 @@ pre.diff-code {
       <button id="run-btn" onclick="runPipeline()">
         <div class="btn-inner">
           <div class="btn-spinner" id="btn-spinner"></div>
-          <span id="btn-label">▶ Run Pipeline</span>
+          <span id="btn-label">&#9654; Run Pipeline</span>
         </div>
       </button>
+      <div id="cli-preview-wrap"><button id="cli-copy-btn" onclick="copyCli()">&#10040; Copy</button><span id="cli-preview"></span></div>
     </div>
   </div>
 
@@ -1040,16 +1208,43 @@ pre.diff-code {
     </div>
   </div>
 
-  <!-- ── PR ── -->
-  <div class="card" id="pr-card">
-    <div class="card-header">
-      <span><span class="card-header-icon">🔀</span>Apply + Verify + PR</span>
-      <span id="pr-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+  <!-- ── PR + GAUGE ROW ── -->
+  <div style="grid-area:pr;display:flex;gap:20px;align-items:flex-start">
+    <div class="card" id="pr-card" style="flex:1;min-width:0">
+      <div class="card-header">
+        <span><span class="card-header-icon">&#128256;</span>Apply + Verify + PR</span>
+        <span id="pr-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="pr-content">
+        <div class="empty-state">
+          <div class="empty-icon">&#128256;</div>
+          <div class="empty-text">PR description will appear after Stage 3</div>
+        </div>
+      </div>
     </div>
-    <div id="pr-content">
-      <div class="empty-state">
-        <div class="empty-icon">🔀</div>
-        <div class="empty-text">PR description will appear after Stage 3</div>
+    <!-- gauge injected here via showPR -->
+    <div id="gauge-card" style="display:none">
+      <div class="card-header" style="font-size:11px">
+        <span>&#9654; Improvement</span>
+      </div>
+      <div class="gauge-body">
+        <div id="gauge-svg-wrap">
+          <svg id="gauge-svg" viewBox="0 0 220 220" width="220" height="220">
+            <circle id="gauge-bg-ring" cx="110" cy="110" r="88"
+              fill="none" stroke="#21262d" stroke-width="18"/>
+            <circle id="gauge-arc" cx="110" cy="110" r="88"
+              fill="none" stroke="#3fb950" stroke-width="18"
+              stroke-linecap="round"
+              stroke-dasharray="553" stroke-dashoffset="553"
+              transform="rotate(-90 110 110)"
+              style="transition: stroke-dashoffset 1.4s cubic-bezier(.22,.61,.36,1), stroke .5s"/>
+          </svg>
+          <div class="gauge-center">
+            <div id="gauge-pct" style="color:#3fb950">0%</div>
+            <div id="gauge-label">Latency Reduction</div>
+          </div>
+        </div>
+        <div id="gauge-vals"></div>
       </div>
     </div>
   </div>
@@ -1850,6 +2045,13 @@ function finishPipeline(sc) {
   document.getElementById('btn-label').textContent = '▶ Run Pipeline';
   document.querySelector('.header-badge').innerHTML = '<div class="pulse"></div> Ready';
   running = false;
+
+  // Save to history
+  if (sc && sc.validation && sc.validation.improvement_pct) {
+    const url   = document.getElementById('inp-url').value;
+    const model = document.getElementById('inp-model').value;
+    saveRunToHistory(url, model, sc.validation.improvement_pct);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -1935,6 +2137,14 @@ function renderDiff(diff) {
 function showPR(sc) {
   currentPrText = sc.prText;
   _activeSc = sc;
+
+  // Show and animate gauge
+  const gaugeCard = document.getElementById('gauge-card');
+  if (gaugeCard && sc.validation) {
+    gaugeCard.style.display = 'block';
+    const v = sc.validation;
+    setTimeout(() => animateGauge(v.improvement_pct, v.p95_before, v.p95_after), 300);
+  }
   const changes = sc.changes || [];
   const nFiles = changes.length;
 
@@ -2082,6 +2292,189 @@ function copyPR() {
 
 // Initial chart draw
 drawChart();
+
+// ─────────────────────────────────────────────
+// ENDPOINT METADATA
+// ─────────────────────────────────────────────
+const ENDPOINT_META = {
+  'http://localhost/api/products':                       { p95: '~392ms', warn: true,  cat: 'Products',  hint: 'N+1 query · eager load fix' },
+  'http://localhost/api/products/1/related':             { p95: '~180ms', warn: false, cat: 'Products',  hint: 'N+1 query · related items loop' },
+  'http://localhost/api/products/1/up-sell':             { p95: '~160ms', warn: false, cat: 'Products',  hint: 'N+1 query · upsell items' },
+  'http://localhost/api/categories':                     { p95: '~73ms',  warn: false, cat: 'Categories',hint: 'Redundant config reads' },
+  'http://localhost/api/categories/tree':                { p95: '~95ms',  warn: false, cat: 'Categories',hint: 'Recursive tree build · cache candidate' },
+  'http://localhost/api/categories/max-price':           { p95: '~55ms',  warn: false, cat: 'Categories',hint: 'MAX() query · index candidate' },
+  'http://localhost/api/categories/attributes':          { p95: '~40ms',  warn: false, cat: 'Categories',hint: 'Attribute list · cacheable' },
+  'http://localhost/api/categories/attributes/1/options':{ p95: '~30ms',  warn: false, cat: 'Categories',hint: 'Option lookup' },
+  'http://localhost/api/product/1/reviews':              { p95: '~85ms',  warn: false, cat: 'Reviews',   hint: 'Missing composite index · product_id+status' },
+  'http://localhost/api/compare-items':                  { p95: '~25ms',  warn: false, cat: 'Compare',   hint: 'Session-based · light' },
+  'http://localhost/api/checkout/cart':                  { p95: '~60ms',  warn: false, cat: 'Checkout',  hint: 'Session + price recalculation' },
+  'http://localhost/api/checkout/cart/cross-sell':       { p95: '~120ms', warn: false, cat: 'Checkout',  hint: 'Product lookup · N+1 risk' },
+  'http://localhost/api/checkout/onepage/summary':       { p95: '~90ms',  warn: false, cat: 'Checkout',  hint: 'Order aggregation' },
+  'http://localhost/api/core/countries':                 { p95: '~15ms',  warn: false, cat: 'Core',      hint: 'Static data · highly cacheable' },
+  'http://localhost/api/core/states':                    { p95: '~12ms',  warn: false, cat: 'Core',      hint: 'Static data · highly cacheable' },
+};
+
+// ─────────────────────────────────────────────
+// ENDPOINT DROPDOWN
+// ─────────────────────────────────────────────
+function onEndpointChange() {
+  const sel = document.getElementById('inp-endpoint');
+  const urlEl = document.getElementById('inp-url');
+  if (sel.value === 'custom') {
+    urlEl.value = '';
+    urlEl.focus();
+  } else {
+    urlEl.value = sel.value;
+  }
+  updateEndpointInfo(urlEl.value);
+  updateCliPreview();
+}
+
+function updateEndpointInfo(url) {
+  const info = document.getElementById('endpoint-info');
+  const meta = ENDPOINT_META[url];
+  if (!meta) { info.style.display = 'none'; return; }
+  info.style.display = 'flex';
+  const p95El = document.getElementById('ep-p95-badge');
+  p95El.textContent = 'p95 ' + meta.p95;
+  p95El.className = 'ep-p95' + (meta.warn ? '' : ' fast');
+  document.getElementById('ep-hint-badge').textContent = meta.hint;
+  document.getElementById('ep-cat-badge').textContent = meta.cat;
+}
+
+// ─────────────────────────────────────────────
+// CLI PREVIEW
+// ─────────────────────────────────────────────
+function updateCliPreview() {
+  const url     = document.getElementById('inp-url').value || 'http://localhost/api/products';
+  const source  = document.getElementById('inp-source').value || './workspace/bagisto';
+  const model   = document.getElementById('inp-model').value || 'gemini-2.5-flash';
+  const dryRun  = document.getElementById('flag-dry').checked;
+  const profOnly= document.getElementById('flag-profile').checked;
+  const push    = document.getElementById('flag-push').checked;
+
+  let cmd = `python run.py \\\n  --url ${url} \\\n  --source ${source} \\\n  --model ${model}`;
+  if (dryRun)   cmd += ' \\\n  --dry-run';
+  if (profOnly) cmd += ' \\\n  --profile-only';
+  if (push)     cmd += ' \\\n  --push';
+
+  document.getElementById('cli-preview').textContent = cmd;
+}
+
+function copyCli() {
+  const text = document.getElementById('cli-preview').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('cli-copy-btn');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = '⎘ Copy'; }, 2000);
+  });
+}
+
+// ─────────────────────────────────────────────
+// GAUGE
+// ─────────────────────────────────────────────
+function animateGauge(pct, before, after) {
+  const circumference = 2 * Math.PI * 88; // ≈ 553
+  const arc = document.getElementById('gauge-arc');
+  const pctEl = document.getElementById('gauge-pct');
+  const valsEl = document.getElementById('gauge-vals');
+
+  const color = pct < 15 ? '#f85149' : pct < 35 ? '#d29922' : '#3fb950';
+  arc.style.stroke = color;
+  pctEl.style.color = color;
+
+  const offset = circumference * (1 - pct / 100);
+  // trigger transition on next frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      arc.style.strokeDashoffset = offset;
+    });
+  });
+
+  // animate the number
+  let current = 0;
+  const step = () => {
+    current = Math.min(current + Math.ceil(pct / 40), pct);
+    pctEl.textContent = current + '%';
+    if (current < pct) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+
+  valsEl.innerHTML = `<span style="color:var(--muted)">${before}ms</span>
+    <span style="color:var(--muted)"> → </span>
+    <span style="color:${color};font-weight:700">${after}ms</span>`;
+}
+
+// ─────────────────────────────────────────────
+// RUN HISTORY
+// ─────────────────────────────────────────────
+const HISTORY_KEY = 'api_optimizer_history';
+
+function saveRunToHistory(url, model, improvementPct) {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) {}
+  const path = url.replace('http://localhost', '').replace(/\/\d+\//g, '/{id}/');
+  history.unshift({ url, model, pct: improvementPct, path });
+  if (history.length > 5) history = history.slice(0, 5);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  loadHistory();
+}
+
+function loadHistory() {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) {}
+  const strip = document.getElementById('run-history-strip');
+  const chips = document.getElementById('history-chips');
+  if (!history.length) {
+    strip.style.display = 'none';
+    return;
+  }
+  strip.style.display = 'block';
+  chips.innerHTML = history.map((h, i) => `
+    <div class="history-chip" onclick="restoreRun(${i})" title="${h.url}">
+      ${h.path}&nbsp;&nbsp;<span style="color:var(--green)">${h.pct}%&#8595;</span>
+      <span style="color:var(--muted);font-size:10px"> (${h.model})</span>
+    </div>`).join('');
+}
+
+function restoreRun(idx) {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) {}
+  const h = history[idx];
+  if (!h) return;
+  document.getElementById('inp-url').value = h.url;
+  document.getElementById('inp-model').value = h.model;
+  // sync dropdown: try exact match, else set custom
+  const sel = document.getElementById('inp-endpoint');
+  let found = false;
+  for (const opt of sel.options) {
+    if (opt.value === h.url) { sel.value = h.url; found = true; break; }
+  }
+  if (!found) sel.value = 'custom';
+  updateCliPreview();
+}
+
+// ─────────────────────────────────────────────
+// KEYBOARD SHORTCUT  Shift+R
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.shiftKey && e.key === 'R') {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    e.preventDefault();
+    runPipeline();
+  }
+});
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  updateCliPreview();
+  loadHistory();
+  updateEndpointInfo(document.getElementById('inp-url').value);
+});
+updateCliPreview(); // also call immediately in case DOMContentLoaded already fired
 </script>
 </body>
 </html>
