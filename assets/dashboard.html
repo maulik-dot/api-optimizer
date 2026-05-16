@@ -1252,6 +1252,8 @@ const SCENARIOS = {
     s1Done: 'PHP · p95=392.1ms · app=295.5ms',
     p95warn: true,
     llmSecs: 21, llmDoneMsg: 'done  (21.3s)',
+    critiqueSecs: 4, critiqueResult: '✓ confirmed — savings within app-layer cap',
+    reProfile: { p95_before: 392, p95_after: 192, runs: 5, improvement_pct: 51 },
     s2Summary: 'N+1 query pattern in product data retrieval — eager loading can reduce latency by ~150ms.',
     s2Improvement: '150 ms  (51%)',
     s2Done: '1 bottleneck · −150ms (−51%)',
@@ -1309,6 +1311,8 @@ const SCENARIOS = {
     s1Done: 'PHP · p95=73.3ms · app=64.9ms',
     p95warn: false,
     llmSecs: 17, llmDoneMsg: 'done  (17.7s)',
+    critiqueSecs: 3, critiqueResult: '✓ refined — savings capped to 68ms (app-layer limit)',
+    reProfile: { p95_before: 73, p95_after: 42, runs: 5, improvement_pct: 42 },
     s2Summary: 'N+1 queries in category relationships + redundant config lookups — 73ms total savings identified.',
     s2Improvement: '73 ms  (112%)',
     s2Done: '3 bottlenecks · −73ms (−112%)',
@@ -1574,7 +1578,18 @@ async function runPipeline() {
   clearInterval(thinkInterval);
 
   tlogHtml(`<span class="t-green">  ${sc.llmDoneMsg}</span>`);
+
+  // ── self-critique pass ──────────────────────────────
+  tlogHtml(`<span class="t-gray">  Self-critique…</span>`);
+  document.getElementById('s2-metric').textContent = 'Self-critique…';
+  const critiqueSpinner = setInterval(() => {
+    document.getElementById('s2-metric').textContent = `${thinkDots[dotIdx++ % thinkDots.length]} critiquing…`;
+  }, 120);
+  await sleep(sc.critiqueSecs * 1000);
+  clearInterval(critiqueSpinner);
+  tlogHtml(`<span class="t-green">  ${sc.critiqueResult}</span>`);
   tlog('');
+
   tlogHtml(`<span class="t-cyan t-bold">  ────────── ANALYSIS SUMMARY ──────────</span>`);
   tlogHtml(`<span class="t-white">     ${sc.s2Summary}</span>`);
   tlog('');
@@ -1616,6 +1631,25 @@ async function runPipeline() {
   tlogHtml(`<span class="t-green">  ✓  Changes committed → ${sc.branch}</span>`);
   tlogHtml(`<span class="t-green">  ✓  PR description generated</span>`);
   tlog('');
+
+  // ── re-profile after fix ────────────────────────────
+  const rp = sc.reProfile;
+  tlogHtml(`<span class="t-blue">  ──────── RE-PROFILING AFTER FIX ────────</span>`);
+  document.getElementById('s3-metric').textContent = 'Re-profiling…';
+  for (let ri = 0; ri < rp.runs; ri++) {
+    await sleep(320);
+    const simMs = rp.p95_after + Math.round((Math.random() - 0.5) * 18);
+    tlogHtml(`<span class="t-gray">     run ${ri+1}/${rp.runs}  ${simMs}ms</span>`);
+  }
+  await sleep(200);
+  tlogHtml(`<span class="t-green">  ✓  Re-profile: p95 ${rp.p95_before}ms → ${rp.p95_after}ms  (−${rp.improvement_pct}%)</span>`);
+  if (rp.improvement_pct >= 15) {
+    tlogHtml(`<span class="t-green">  ✓  Target met (${rp.improvement_pct}% ≥ 15%) — no retry needed</span>`);
+  } else {
+    tlogHtml(`<span class="t-yellow">  ⚠  ${rp.improvement_pct}% < 15% target — Stage 2 retry would trigger</span>`);
+  }
+  tlog('');
+
   tlogHtml(`<span class="t-yellow">  ──────── NEXT STEP ────────</span>`);
   tlogHtml(`<span class="t-white">  Validate API response unchanged, then create PR.</span>`);
   tlogHtml(`<span class="t-gray">  Click "Run Validation" in the panel →</span>`);

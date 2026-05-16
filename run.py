@@ -126,6 +126,8 @@ def run_stage1(args, s1) -> dict | None:
     else:
         warn("Skipping profiling — API returned 5xx")
 
+    report = s1.build_report(args.url, args.method, health, lang, latency)
+
     # Save baseline response for post-fix validation
     try:
         from validate_api import capture_baseline
@@ -133,8 +135,6 @@ def run_stage1(args, s1) -> dict | None:
         report["baseline_response"] = baseline
     except Exception:
         pass
-
-    report = s1.build_report(args.url, args.method, health, lang, latency)
     stage_done(1, time.time() - t0,
                f"  {lang['language'].upper()}  |  "
                f"p95={latency.get('p95_ms','?')}ms  |  "
@@ -172,7 +172,7 @@ def run_dependency_analysis(args, report: dict) -> dict | None:
         return None
 
 
-def run_stage2(args, s2, report: dict) -> dict | None:
+def run_stage2(args, s2, report: dict, retry_context: dict = None) -> dict | None:
     stage_header(2, "AI ANALYSIS")
     t0 = time.time()
 
@@ -192,6 +192,30 @@ def run_stage2(args, s2, report: dict) -> dict | None:
 
     system_prompt, user_prompt = s2.build_prompt(report, source_code, language)
 
+    # Inject retry context when this is a second/third attempt
+    if retry_context:
+        attempt      = retry_context.get("attempt", 1)
+        max_retries  = retry_context.get("max_retries", 2)
+        p95_b        = retry_context.get("p95_before", 0)
+        p95_a        = retry_context.get("p95_after", 0)
+        actual_pct   = retry_context.get("actual_improvement_pct", 0)
+        expected_pct = retry_context.get("expected_improvement_pct", 0)
+        applied      = retry_context.get("applied_fixes", [])
+
+        applied_lines = "\n".join(f"  - {f}" for f in applied) or "  (none recorded)"
+        retry_prefix = (
+            f"\nRETRY CONTEXT (attempt {attempt + 1}/{max_retries + 1}):\n"
+            f"The previous analysis was applied and re-profiled. Improvement was insufficient.\n\n"
+            f"  p95 before fix : {p95_b}ms\n"
+            f"  p95 after fix  : {p95_a}ms\n"
+            f"  Actual gain    : {actual_pct:.1f}%  (target ≥ {expected_pct:.0f}%)\n\n"
+            f"Previously applied fixes — do NOT suggest these again:\n{applied_lines}\n\n"
+            f"Produce a NEW analysis targeting different or deeper bottlenecks.\n"
+            f"The fixes above already exist in the code — treat them as the new baseline.\n"
+        )
+        user_prompt = retry_prefix + user_prompt
+        warn(f"Retry attempt {attempt + 1} — previous fix yielded only {actual_pct:.1f}% improvement")
+
     print("  Calling LLM", end="", flush=True)
     dot_t = time.time()
     try:
@@ -210,6 +234,25 @@ def run_stage2(args, s2, report: dict) -> dict | None:
 
     elapsed_llm = time.time() - dot_t
     print(c(f"  {elapsed_llm:.1f}s", "37"))
+
+    # ── self-critique second pass ─────────────────────────────────────────────
+    print(c("  Self-critique…", "37"), end="", flush=True)
+    t_crit = time.time()
+    try:
+        profile  = report.get("latency_profile", {})
+        refined  = s2.run_critique(system_prompt, user_prompt, result, profile)
+        t_crit_e = time.time() - t_crit
+
+        orig_savings = result.get("total_estimated_improvement_ms", 0)
+        new_savings  = refined.get("total_estimated_improvement_ms", orig_savings)
+        delta        = orig_savings - new_savings
+        if abs(delta) > 5:
+            print(c(f"  {t_crit_e:.1f}s  ✓ refined  (savings {orig_savings}→{new_savings}ms)", "93"))
+        else:
+            print(c(f"  {t_crit_e:.1f}s  ✓ confirmed", "37"))
+        result = refined
+    except Exception as e:
+        print(c(f"  {time.time()-t_crit:.1f}s  skipped ({e})", "37"))
 
     s2.display_analysis(result)
 
@@ -401,6 +444,7 @@ def run_stage3(args, s3, analysis: dict, out_dir: str, report_path: str) -> dict
                 ok("Skipped. Push manually when ready:")
                 info(f"  git push origin {branch}")
                 info(f"  gh pr create --title 'perf: optimize {language} API' --base main --head {branch}")
+                n_ok = len(successful)
                 return {
                     "branch": branch, "patches_applied": patches_applied,
                     "pr_path": pr_path, "n_ok": n_ok,
@@ -664,22 +708,74 @@ examples:
                 json.dump(dep_result, f, indent=2)
             ok(f"Saved: {dep_path}")
 
-    # ── STAGE 2 ───────────────────────────────────────────────────────────────
-    analysis = run_stage2(args, s2, report)
-    if analysis:
-        analysis_path = os.path.join(out_dir, "stage2_analysis.json")
-        with open(analysis_path, "w") as f:
-            json.dump(analysis, f, indent=2)
-        ok(f"Saved: {analysis_path}")
+    # ── STAGE 2 + 3  with self-critique and re-profile retry loop ────────────
+    MAX_RETRIES   = 2
+    p95_before    = float(report.get("latency_profile", {}).get("p95_ms", 0) or 0)
+    retry_ctx     = None
+    analysis      = None
+    pr_result     = None
 
-    if args.no_pr or not analysis:
+    for attempt in range(MAX_RETRIES + 1):
+        analysis = run_stage2(args, s2, report, retry_context=retry_ctx)
         if analysis:
-            stage_skip(3, "--no-pr flag set")
-        print_summary(report, analysis, None, out_dir, time.time() - t_total)
-        return
+            analysis_path = os.path.join(out_dir, f"stage2_analysis_a{attempt}.json")
+            with open(analysis_path, "w") as f:
+                json.dump(analysis, f, indent=2)
+            ok(f"Saved: {analysis_path}")
 
-    # ── STAGE 3 ───────────────────────────────────────────────────────────────
-    pr_result = run_stage3(args, s3, analysis, out_dir, report_path)
+        if args.no_pr or not analysis:
+            if analysis:
+                stage_skip(3, "--no-pr flag set")
+            break
+
+        pr_result = run_stage3(args, s3, analysis, out_dir, report_path)
+
+        # Skip re-profile on dry-run, no successful patches, or final attempt
+        if args.dry_run or not pr_result.get("n_ok") or attempt >= MAX_RETRIES:
+            break
+
+        # Re-profile to check whether the fix actually helped
+        expected_pct = float(analysis.get("total_estimated_improvement_pct", 0))
+        if expected_pct < 15:
+            break  # Model didn't promise ≥15% — don't bother retrying
+
+        print(c("\n  ──────── RE-PROFILING AFTER FIX ────────", "94"))
+        try:
+            from validate_api import quick_profile
+            new_perf    = quick_profile(args.url, runs=5)
+            p95_after   = new_perf.get("p95", p95_before)
+            actual_pct  = (p95_before - p95_after) / p95_before * 100 if p95_before else 0
+
+            ok(f"Re-profile: p95 {p95_before:.0f}ms → {p95_after:.0f}ms  ({actual_pct:+.1f}%)")
+
+            if actual_pct >= 15:
+                ok(f"Target met ({actual_pct:.1f}% ≥ 15%) — done")
+                break
+            else:
+                warn(f"Improvement {actual_pct:.1f}% < 15% target — retrying Stage 2")
+                applied_fixes = [
+                    f"{p['file']}: "
+                    + next(
+                        (b.get("category", "") for b in analysis.get("bottlenecks", [])
+                         if b.get("rank") == p["rank"]),
+                        "fix",
+                    )
+                    for p in pr_result.get("patches_applied", [])
+                    if p.get("success")
+                ]
+                retry_ctx = {
+                    "attempt":                  attempt + 1,
+                    "max_retries":              MAX_RETRIES,
+                    "p95_before":               p95_before,
+                    "p95_after":                p95_after,
+                    "actual_improvement_pct":   actual_pct,
+                    "expected_improvement_pct": expected_pct,
+                    "applied_fixes":            applied_fixes,
+                }
+                p95_before = p95_after  # sliding baseline for next attempt
+        except Exception as e:
+            warn(f"Re-profile skipped: {e}")
+            break
 
     # ── SUMMARY ───────────────────────────────────────────────────────────────
     print_summary(report, analysis, pr_result, out_dir, time.time() - t_total)

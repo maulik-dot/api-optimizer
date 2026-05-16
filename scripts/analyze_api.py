@@ -251,6 +251,62 @@ LANGUAGE DETECTION:
     return system, user
 
 
+# ─── self-critique ─────────────────────────────────────────────────────────────
+
+def run_critique(
+    system_prompt: str,
+    user_prompt: str,
+    initial_analysis: dict,
+    profile: dict,
+) -> dict:
+    """
+    Second LLM call in a multi-turn conversation.
+    Asks the model to review its own output against hard constraints from the
+    profiling data and return a corrected (or confirmed) JSON.
+    """
+    app_ms  = profile.get("layers", {}).get("app_ms", 0) or 0
+    p95_ms  = profile.get("p95_ms", 0) or 0
+    total_savings = sum(
+        b.get("estimated_latency_saved_ms", 0)
+        for b in initial_analysis.get("bottlenecks", [])
+    )
+
+    critique_prompt = f"""Review the analysis you just produced against these hard constraints.
+
+PROFILING GROUND TRUTH:
+  Total p95 latency   : {p95_ms}ms
+  App processing time : {app_ms}ms  ← MAXIMUM possible savings (DB + handler only)
+  Your total savings  : {total_savings}ms across {len(initial_analysis.get('bottlenecks', []))} bottleneck(s)
+
+CHECKLIST — correct any violations:
+1. SAVINGS CAP: total estimated savings ({total_savings}ms) must be ≤ app_ms ({app_ms}ms).
+   If exceeded, scale estimates down proportionally.
+2. FILE PATHS: each `file` must be a plausible path visible in the source provided.
+   If a path looks invented, set `file` to "unknown".
+3. CODE ACCURACY: each `before` snippet must match code actually present in the source.
+   If not verifiable, shorten or remove it.
+4. MISSED PATTERNS: is there an obvious bottleneck you missed?
+   (uncached config read inside a loop, missing eager load, synchronous external call)
+5. ESTIMATE REALISM: are individual savings proportional to bottleneck severity and hit count?
+
+Return the corrected JSON if changes are needed, or the original JSON if it passes all checks.
+Return ONLY the JSON — no explanation, no markdown."""
+
+    messages = [
+        {"role": "system",    "content": system_prompt},
+        {"role": "user",      "content": user_prompt},
+        {"role": "assistant", "content": json.dumps(initial_analysis)},
+        {"role": "user",      "content": critique_prompt},
+    ]
+
+    return llm.chat_json(
+        messages=messages,
+        temperature=0.1,
+        max_tokens=8192,
+        response_format={"type": "json_object"},
+    )
+
+
 # ─── display ───────────────────────────────────────────────────────────────────
 
 SEVERITY_COLOR = {"critical": "91", "high": "93", "medium": "33", "low": "37"}
