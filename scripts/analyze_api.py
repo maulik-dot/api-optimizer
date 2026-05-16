@@ -158,42 +158,39 @@ separation of concerns. Always respond with ONLY a valid JSON object — no pros
 
 
 OUTPUT_SCHEMA = """
-Return this exact JSON schema (fill every field, do not add extra top-level keys):
+Return ONLY this exact JSON object. Be concise — code snippets max 8 lines each, descriptions max 2 sentences:
 {
-  "summary": "<one sentence: what is the primary bottleneck and estimated gain>",
+  "summary": "<one sentence: primary bottleneck and estimated gain>",
   "language": "<php|go|php-to-go-migration>",
   "bottlenecks": [
     {
       "rank": 1,
       "file": "<relative file path or 'unknown'>",
-      "line_range": "<e.g. 45-67 or 'unknown'>",
-      "category": "<one of: n_plus_one_query | serial_io | missing_index | mutex_contention | goroutine_leak | redundant_computation | memory_alloc | dead_code | missing_cache | sync_to_async>",
+      "line_range": "<e.g. 45-67>",
+      "category": "<n_plus_one_query|serial_io|missing_index|mutex_contention|redundant_computation|missing_cache|sync_to_async>",
       "severity": "<critical|high|medium|low>",
-      "description": "<2-3 sentences: what is happening and why it is slow>",
+      "description": "<2 sentences max: what is slow and why>",
       "estimated_latency_saved_ms": <integer>,
       "fix": {
         "description": "<one sentence: what to change>",
-        "before": "<code snippet showing the problem — keep under 20 lines>",
-        "after":  "<code snippet showing the fix — keep under 20 lines>"
+        "before": "<STRICT MAX 8 LINES of code showing the problem>",
+        "after":  "<STRICT MAX 8 LINES of code showing the fix>"
       }
     }
   ],
   "parallel_opportunities": [
     {
-      "description": "<what calls can run in parallel>",
-      "estimated_latency_saved_ms": <integer>,
-      "code": "<parallel implementation snippet>"
+      "description": "<one sentence: what can run in parallel>",
+      "estimated_latency_saved_ms": <integer>
     }
   ],
   "migration_plan": {
     "applicable": <true|false>,
-    "rationale": "<why migration helps or why it doesn't apply>",
-    "go_equivalent": "<Go handler code for the critical path, if applicable>",
-    "estimated_latency_saved_ms": <integer>
+    "rationale": "<one sentence>"
   },
   "total_estimated_improvement_ms": <integer>,
   "total_estimated_improvement_pct": <integer>,
-  "priority_order": ["<bottleneck category 1>", "<bottleneck category 2>"]
+  "priority_order": ["<category1>", "<category2>"]
 }
 """
 
