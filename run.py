@@ -181,44 +181,45 @@ def run_stage2(args, s2, report: dict) -> dict | None:
         warn("Language unknown — defaulting to Go analysis")
         language = "go"
 
-    # Load source code
-    source_code = ""
+    result = None
+
     if args.source:
-        source_code = s2.load_source_files(args.source, language)
-        if source_code:
-            ok(f"Source loaded ({len(source_code):,} chars)")
-        else:
-            warn("No source files found — pattern-based analysis only")
+        # Unified agent: explores + diagnoses in one pass (no double-read)
+        result = s2.run_diagnosis_agent(report.get("endpoint", args.url), args.source, report)
+        if not result:
+            warn("Diagnosis agent failed — falling back to pattern-based analysis")
 
-    system_prompt, user_prompt = s2.build_prompt(report, source_code, language)
+    if not result:
+        # Fallback: heuristic file selection + single analysis LLM call
+        source_code = s2._load_source_files_fallback(args.source, language) if args.source else ""
+        system_prompt, user_prompt = s2.build_prompt(report, source_code, language)
+        print("  Calling LLM", end="", flush=True)
+        dot_t = time.time()
+        try:
+            result = llm.chat_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=3000,
+            )
+        except (PermissionError, ValueError, Exception) as e:
+            print()
+            stage_fail(2, str(e))
+            return None
+        print(c(f"  {time.time()-dot_t:.1f}s", "37"))
 
-    print("  Calling LLM", end="", flush=True)
-    dot_t = time.time()
-    try:
-        result = llm.chat_json(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=4096,
-        )
-    except (PermissionError, ValueError, Exception) as e:
-        print()
-        stage_fail(2, str(e))
+    if not result:
+        stage_fail(2, "No analysis result")
         return None
 
-    elapsed_llm = time.time() - dot_t
-    print(c(f"  {elapsed_llm:.1f}s", "37"))
-
     s2.display_analysis(result)
-
     n_bottlenecks = len(result.get("bottlenecks", []))
     total_ms  = result.get("total_estimated_improvement_ms", 0)
     total_pct = result.get("total_estimated_improvement_pct", 0)
     stage_done(2, time.time() - t0,
-               f"  {n_bottlenecks} bottlenecks  |  "
-               f"−{total_ms}ms  (−{total_pct}%)")
+               f"  {n_bottlenecks} bottlenecks  |  −{total_ms}ms  (−{total_pct}%)")
     return result
 
 
@@ -300,6 +301,7 @@ def run_stage3(args, s3, analysis: dict, out_dir: str, report_path: str) -> dict
         result = apply_fix_to_file(
             fabs, fix["before"], fix["after"],
             fix.get("description", ""), model=model, dry_run=args.dry_run,
+            anchor=b.get("anchor", ""),
         )
 
         if result.success:

@@ -131,48 +131,80 @@ def _fuzzy_locate(content: str, before: str, threshold: float = 0.72) -> tuple[i
 
 
 def _llm_patch(file_content: str, file_path: str, before: str, after: str,
-               description: str, model: str | None) -> str | None:
+               description: str, model: str | None, anchor: str = "") -> str | None:
     """
-    Last resort: ask the LLM to return the full file with the fix applied.
-    Returns the patched file content or None.
+    Last-resort patch via LLM.
+    Uses anchor (function context from the diagnosis agent) when available — much cheaper
+    than sending the full file. Returns only the patched snippet, then splices it in.
     """
     if not llm.API_KEY:
         return None
 
-    prompt = f"""You are a precise code editor. Apply exactly ONE change to the file below.
+    if anchor:
+        # Cheap path: anchor is ~5-10 lines of context around the fix site
+        prompt = f"""Apply this fix. Return ONLY the corrected version of the REPLACE block, nothing else.
 
-CHANGE DESCRIPTION: {description}
+DESCRIPTION: {description}
 
-PATTERN TO REPLACE (approximate — find the closest equivalent in the file):
+CONTEXT (surrounding code):
+```
+{anchor}
+```
+
+REPLACE:
 ```
 {before}
 ```
 
-REPLACEMENT:
+WITH:
+```
+{after}
+```"""
+        try:
+            patched_snippet = llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                model=model, temperature=0.0, max_tokens=512,
+            ).strip()
+            if patched_snippet.startswith("```"):
+                lines = patched_snippet.splitlines()
+                patched_snippet = "\n".join(
+                    lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+                )
+            # Splice: replace 'before' in file with the LLM-returned snippet
+            before_stripped = before.strip()
+            if before_stripped in file_content:
+                return file_content.replace(before_stripped, patched_snippet, 1)
+        except Exception:
+            pass
+        return None
+
+    # Fallback: send first 2000 chars of file (still much cheaper than 6000)
+    prompt = f"""Apply exactly ONE change to the file. Return ONLY the complete modified file.
+
+DESCRIPTION: {description}
+
+REPLACE:
+```
+{before}
+```
+WITH:
 ```
 {after}
 ```
 
 FILE: {file_path}
 ```
-{file_content[:6000]}
-```
-
-Return ONLY the complete modified file content. No explanation, no markdown fences, no extra text.
-If you cannot find the pattern, return the file unchanged."""
-
+{file_content[:2000]}
+```"""
     try:
         result = llm.chat(
             messages=[{"role": "user", "content": prompt}],
-            model=model,
-            temperature=0.0,
-            max_tokens=4096,
+            model=model, temperature=0.0, max_tokens=2048,
         )
         cleaned = result.strip()
         if cleaned.startswith("```"):
             lines = cleaned.splitlines()
             cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-        # Sanity: result should be longer than half the original
         if len(cleaned) > len(file_content) * 0.4:
             return cleaned
     except Exception:
@@ -195,6 +227,7 @@ def apply_fix_to_file(
     description: str,
     model: str | None = None,
     dry_run: bool = False,
+    anchor: str = "",
 ) -> PatchResult:
     """
     Try four strategies to apply the fix. Modifies file in place unless dry_run.
@@ -250,7 +283,7 @@ def apply_fix_to_file(
         return PatchResult(True, "fuzzy", lines_changed=abs(after_stripped.count("\n") - before_stripped.count("\n")))
 
     # 4 — LLM-assisted patch
-    llm_result = _llm_patch(content, file_path, before_stripped, after_stripped, description, model)
+    llm_result = _llm_patch(content, file_path, before_stripped, after_stripped, description, model, anchor)
     if llm_result:
         if not dry_run:
             open(file_path, "w", encoding="utf-8").write(llm_result)
@@ -264,8 +297,17 @@ def apply_fix_to_file(
 
 def syntax_check(file_path: str) -> tuple[bool, str]:
     ext = Path(file_path).suffix.lower()
-    checker = {"php": ["php", "-l", file_path], ".go": ["go", "vet", file_path]}.get(ext)
-    if not checker:
+    if ext == ".php":
+        checker = ["php", "-l", file_path]
+    elif ext == ".go":
+        # go vet on the containing package, not a single file
+        pkg_dir = str(Path(file_path).parent)
+        checker = ["go", "vet", "./..."]
+        if not shutil.which("go"):
+            return True, "go not found — skipping syntax check"
+        r = subprocess.run(checker, capture_output=True, text=True, cwd=pkg_dir)
+        return r.returncode == 0, (r.stdout + r.stderr).strip()
+    else:
         return True, "no checker for this file type"
     if not shutil.which(checker[0]):
         return True, f"{checker[0]} not found — skipping syntax check"
@@ -290,16 +332,20 @@ def build_pr_description(analysis: dict, patches_applied: list[dict], branch: st
     # map severity to emoji
     sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
     cat_label = {
-        "n_plus_one_query":     "N+1 Query",
-        "serial_io":            "Serial I/O",
-        "missing_index":        "Missing Index",
-        "mutex_contention":     "Mutex Contention",
-        "goroutine_leak":       "Goroutine Leak",
-        "redundant_computation":"Redundant Computation",
-        "memory_alloc":         "Memory Allocation",
-        "dead_code":            "Dead Code",
-        "missing_cache":        "Missing Cache",
-        "sync_to_async":        "Sync → Async",
+        "n_plus_one_query":       "N+1 Query",
+        "serial_io":              "Serial I/O",
+        "missing_index":          "Missing Index",
+        "mutex_contention":       "Mutex Contention",
+        "goroutine_leak":         "Goroutine Leak",
+        "redundant_computation":  "Redundant Computation",
+        "memory_alloc":           "Memory Allocation",
+        "dead_code":              "Dead Code",
+        "missing_cache":          "Missing Cache",
+        "sync_to_async":          "Sync → Async",
+        "context_propagation":    "Missing Context Propagation",
+        "http_client_reuse":      "HTTP Client Not Reused",
+        "connection_pool_sizing": "Connection Pool Sizing",
+        "response_serialization": "Response Serialization",
     }
 
     lang_icon = {"php": "🐘", "go": "🐹", "php-to-go-migration": "🔄"}.get(lang, "⚙️")
@@ -565,6 +611,7 @@ def main():
             fix.get("description", ""),
             model=model,
             dry_run=args.dry_run,
+            anchor=b.get("anchor", ""),
         )
 
         if result.success:
