@@ -181,18 +181,8 @@ def run_stage2(args, s2, report: dict, retry_context: dict = None) -> dict | Non
         warn("Language unknown — defaulting to Go analysis")
         language = "go"
 
-    # Load source code
-    source_code = ""
-    if args.source:
-        source_code = s2.load_source_files(args.source, language)
-        if source_code:
-            ok(f"Source loaded ({len(source_code):,} chars)")
-        else:
-            warn("No source files found — pattern-based analysis only")
-
-    system_prompt, user_prompt = s2.build_prompt(report, source_code, language)
-
-    # Inject retry context when this is a second/third attempt
+    # Build retry prefix once — injected into both agentic and fallback paths
+    retry_prefix = ""
     if retry_context:
         attempt      = retry_context.get("attempt", 1)
         max_retries  = retry_context.get("max_retries", 2)
@@ -201,52 +191,66 @@ def run_stage2(args, s2, report: dict, retry_context: dict = None) -> dict | Non
         actual_pct   = retry_context.get("actual_improvement_pct", 0)
         expected_pct = retry_context.get("expected_improvement_pct", 0)
         applied      = retry_context.get("applied_fixes", [])
-
         applied_lines = "\n".join(f"  - {f}" for f in applied) or "  (none recorded)"
         retry_prefix = (
             f"\nRETRY CONTEXT (attempt {attempt + 1}/{max_retries + 1}):\n"
-            f"The previous analysis was applied and re-profiled. Improvement was insufficient.\n\n"
-            f"  p95 before fix : {p95_b}ms\n"
-            f"  p95 after fix  : {p95_a}ms\n"
-            f"  Actual gain    : {actual_pct:.1f}%  (target ≥ {expected_pct:.0f}%)\n\n"
-            f"Previously applied fixes — do NOT suggest these again:\n{applied_lines}\n\n"
-            f"Produce a NEW analysis targeting different or deeper bottlenecks.\n"
-            f"The fixes above already exist in the code — treat them as the new baseline.\n"
+            f"Previous fix re-profiled: p95 {p95_b}ms → {p95_a}ms "
+            f"({actual_pct:.1f}% gain, target ≥ {expected_pct:.0f}%).\n"
+            f"Do NOT suggest these again:\n{applied_lines}\n"
+            f"Find different or deeper bottlenecks — treat the above as already applied.\n"
         )
-        user_prompt = retry_prefix + user_prompt
         warn(f"Retry attempt {attempt + 1} — previous fix yielded only {actual_pct:.1f}% improvement")
 
-    print("  Calling LLM", end="", flush=True)
-    dot_t = time.time()
-    try:
-        result = llm.chat_json(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=4096,
-        )
-    except (PermissionError, ValueError, Exception) as e:
-        print()
-        stage_fail(2, str(e))
-        return None
+    result = None
 
-    elapsed_llm = time.time() - dot_t
-    print(c(f"  {elapsed_llm:.1f}s", "37"))
+    if args.source:
+        # Unified agent: explores + diagnoses in one pass (no double-read)
+        # Retry context is passed via playbook so the agent sees it in its system prompt
+        result = s2.run_diagnosis_agent(
+            report.get("endpoint", args.url), args.source, report,
+            playbook=retry_prefix,
+        )
+        if not result:
+            warn("Diagnosis agent failed — falling back to pattern-based analysis")
+
+    if not result:
+        # Fallback: heuristic file selection + single analysis LLM call
+        source_code = s2._load_source_files_fallback(args.source, language) if args.source else ""
+        system_prompt, user_prompt = s2.build_prompt(report, source_code, language)
+        if retry_prefix:
+            user_prompt = retry_prefix + user_prompt
+        print("  Calling LLM", end="", flush=True)
+        dot_t = time.time()
+        try:
+            result = llm.chat_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=3000,
+            )
+        except (PermissionError, ValueError, Exception) as e:
+            print()
+            stage_fail(2, str(e))
+            return None
+        print(c(f"  {time.time()-dot_t:.1f}s", "37"))
+
+    if not result:
+        stage_fail(2, "No analysis result")
+        return None
 
     # ── self-critique second pass ─────────────────────────────────────────────
     print(c("  Self-critique…", "37"), end="", flush=True)
     t_crit = time.time()
     try:
-        profile  = report.get("latency_profile", {})
-        refined  = s2.run_critique(system_prompt, user_prompt, result, profile)
-        t_crit_e = time.time() - t_crit
-
-        orig_savings = result.get("total_estimated_improvement_ms", 0)
-        new_savings  = refined.get("total_estimated_improvement_ms", orig_savings)
-        delta        = orig_savings - new_savings
-        if abs(delta) > 5:
+        profile       = report.get("latency_profile", {})
+        sys_p, usr_p  = s2.build_prompt(report, "", language)
+        refined       = s2.run_critique(sys_p, usr_p, result, profile)
+        t_crit_e      = time.time() - t_crit
+        orig_savings  = result.get("total_estimated_improvement_ms", 0)
+        new_savings   = refined.get("total_estimated_improvement_ms", orig_savings)
+        if abs(orig_savings - new_savings) > 5:
             print(c(f"  {t_crit_e:.1f}s  ✓ refined  (savings {orig_savings}→{new_savings}ms)", "93"))
         else:
             print(c(f"  {t_crit_e:.1f}s  ✓ confirmed", "37"))
@@ -255,13 +259,11 @@ def run_stage2(args, s2, report: dict, retry_context: dict = None) -> dict | Non
         print(c(f"  {time.time()-t_crit:.1f}s  skipped ({e})", "37"))
 
     s2.display_analysis(result)
-
     n_bottlenecks = len(result.get("bottlenecks", []))
     total_ms  = result.get("total_estimated_improvement_ms", 0)
     total_pct = result.get("total_estimated_improvement_pct", 0)
     stage_done(2, time.time() - t0,
-               f"  {n_bottlenecks} bottlenecks  |  "
-               f"−{total_ms}ms  (−{total_pct}%)")
+               f"  {n_bottlenecks} bottlenecks  |  −{total_ms}ms  (−{total_pct}%)")
     return result
 
 
@@ -343,6 +345,7 @@ def run_stage3(args, s3, analysis: dict, out_dir: str, report_path: str) -> dict
         result = apply_fix_to_file(
             fabs, fix["before"], fix["after"],
             fix.get("description", ""), model=model, dry_run=args.dry_run,
+            anchor=b.get("anchor", ""),
         )
 
         if result.success:
